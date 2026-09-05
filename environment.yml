@@ -1,0 +1,20 @@
+name: tick_detection
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - cuda-toolkit=11.8
+  - cudnn=8.9.0
+  - pip
+  - pip:
+    - torch>=2.0.0
+    - torchvision>=0.15.0
+    - detectron2 @ https://dl.fbaipublicfiles.com/detectron2/wheels/cu118/torch2.0/index.html
+    - pycocotools>=2.0
+    - opencv-python>=4.5
+    - Pillow>=8.0
+    - numpy>=1.21
+    - tensorrt

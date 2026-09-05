@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/c/ProgramData/Anaconda3/Scripts/conda.exe run:*)",
+      "Bash(/c/Users/a/.conda/envs/tick_detection/python.exe:*)",
+      "Bash(ls:*)",
+      "WebSearch"
+    ]
+  }
+}

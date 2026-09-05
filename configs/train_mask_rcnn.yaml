@@ -1,0 +1,61 @@
+MODEL:
+  META_ARCHITECTURE: "GeneralizedRCNN"
+  BACKBONE:
+    NAME: "build_resnet_backbone"
+    RESNET_OUT_FEATURES: ["res2", "res3", "res4", "res5"]
+  FPN:
+    NAME: "build_fpn_backbone"
+    IN_FEATURES: ["res2", "res3", "res4", "res5"]
+  ANCHOR_GENERATOR:
+    NAME: "DefaultAnchorGenerator"
+    SIZES: [[8], [16], [32], [64], [128]]
+    ASPECT_RATIOS: [[0.5, 1.0, 2.0]]
+  RPN:
+    NAME: "StandardRPNHead"
+    IN_FEATURES: ["p2", "p3", "p4", "p5", "p6"]
+    IOU_THRESHOLDS: [0.3, 0.7]
+    IOU_LABELS: [0, 1, -1]
+  ROI_HEADS:
+    NAME: "StandardROIHeads"
+    IN_FEATURES: ["p2", "p3", "p4", "p5"]
+    NUM_CLASSES: 1
+    ROI_BOX_HEAD:
+      NAME: "FastRCNNConvFCHead"
+      NUM_FC: 2
+      HIDDEN_DIM: 256
+    ROI_MASK_HEAD:
+      NAME: "MaskRCNNConvUpsampleHead"
+      NUM_CONV: 4
+      CONV_DIM: 256
+  MASK_ON: True
+
+DATASETS:
+  TRAIN: ("tick_train",)
+  TEST: ("tick_val",)
+
+SOLVER:
+  IMS_PER_BATCH: 2
+  BASE_LR: 0.001
+  STEPS: (6000, 8000)
+  MAX_ITER: 10000
+  GAMMA: 0.1
+  WARMUP_ITERS: 100
+  CHECKPOINT_PERIOD: 500
+
+INPUT:
+  MIN_SIZE_TRAIN: (640, 672, 704, 736, 768, 800)
+  MAX_SIZE_TRAIN: 1333
+  MIN_SIZE_TEST: 800
+  MAX_SIZE_TEST: 1333
+  AUGMENTATION:
+    - RandomFlip
+    - RandomBrightness
+    - RandomContrast
+
+TEST:
+  EVAL_PERIOD: 500
+  RECALL_THRESHOLDS: [0.5, 0.75]
+  PRECISION_THRESHOLDS: [0.5, 0.75, 0.95]
+
+OUTPUT_DIR: "output/mask_rcnn"
+DEVICE: "cuda"
