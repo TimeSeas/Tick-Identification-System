@@ -7,3 +7,5 @@
 /ticks image detection.v5i.coco
 *.zip
 /models
+/TickIDNet
+/src/detectron2
