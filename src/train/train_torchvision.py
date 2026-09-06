@@ -161,7 +161,7 @@ class TickDetectionDataset(torch.utils.data.Dataset):#自定义数据集类
 def get_transform(train=True):
     """Get transforms for training or validation."""
     if train:
-        return transforms.Compose([
+        return transforms.Compose([#将PIL图像或NumPy数组转换为PyTorch张量
             transforms.ToTensor(),
         ])
     else:
