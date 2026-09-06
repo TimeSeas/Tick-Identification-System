@@ -2,10 +2,18 @@
 /archive2
 /archive3
 /data
-/output
 /tick-bite-improved.v7-random_split_resize_640.coco-segmentation
 /ticks image detection.v5i.coco
 *.zip
 /models
 /TickIDNet
 /src/detectron2
+/output/detection_results
+/output/inference_results
+*.pth
+output/result_Amblyomma_americanum_unk_n_iNat_unk_unfed_49074013.jpg
+output/result_Ant_2.jpg
+output/result_Image_15.png
+output/result_Spider_22.jpg
+output/result_Bee_10.jpg
+/output/sam_pilot

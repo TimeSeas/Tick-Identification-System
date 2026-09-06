@@ -103,12 +103,15 @@ python scripts/sam_auto_label.py --mode auto --input-dirs archive2/dataset/train
 | 蜱种图片数据集（2026-09-03 下载） | `data/tick_species/`（**173 物种 7623 张**，文件夹即类别：GBIF 3 物种包 + GBIF API 12 物种 + HF fine-grained-challenges Ixodidae 4499 张；学名↔中文名对照表 `物种中文名对照表.csv`；全局清单 `fgc_ixodidae_manifest.csv`；原始包 `data/tick_species_raw/`） |
 | 叮咬伤口数据集（COCO） | `tick-bite-improved.v7-random_split_resize_640.coco-segmentation/`（1032 图 / 1806 多边形标注） |
 | 标注指南 | `docs/annotation_guide.md` |
-| 论文支撑材料 | `论文研究材料/SAM自动标注原理与效果分析.md`（原理、实验结果、原因分析） |
+| 论文支撑材料 | `论文研究材料/SAM自动标注原理与效果分析.md`（原理、实验结果、原因分析）、`论文研究材料/研究成果与论文素材.md`（成果总览、实验数据、图表清单、章节映射，持续更新） |
 | 调参教程 | `调参教程/SAM标注代码修改与调参教程.md`（参数速查、改码练习） |
 | 毕业设计规划 | `毕业设计/毕业设计系统规划.md`（选题、架构、8 个 WP、论文结构、进度对照） |
 | 自动标注AI模型 | `models/yolov8m.pt`、`models/yolov8m.onnx`、`models/classes.txt`（28类）、`models/yolov8_custom.yaml` |
 | SAM 权重与脚本 | `models/sam_vit_b_01ec64.pth`（vit_b，375MB）、`scripts/sam_auto_label.py`（fill/auto 两模式） |
 | 数据工具脚本 | `scripts/verify_coco_dataset.py`、`scripts/convert_folder_to_coco.py`、`scripts/download_gbif_images.py`（GBIF 归档包图片下载）、`scripts/download_gbif_species.py`（GBIF API 按物种名下载，任意蜱种）、`scripts/extract_fgc_ixodidae.py`（HF lance 解包）——均断点续跑 |
+| 置信阈值脚本 | `scripts/confidence_thresholds.py`（复现 TickIDNet 分物种置信阈值方法，WP2 用；输入验证集预测 CSV，输出各物种阈值表） |
+| 蜱种分类训练 | `src/train/train_tick_species.py`（3 类基线）、`src/train/train_tick_species_all.py`（通用多类别，支持加权采样/标签平滑/输入分辨率，31 类用）；划分脚本 `scripts/split_species.py` → `data/tick_species/split_{3,31}cls.json` |
+| 蜱种推理演示 | `src/inference/infer_tick_species.py`（测试集抽样推理，预览图标注真实/预测蜱种含中文名，绿对红错 + summary.csv） |
 | 商业计划书生成 | `scripts/generate_business_plan.py` → `output/智蜱卫士_商业计划书.docx` |
 
 ## 架构

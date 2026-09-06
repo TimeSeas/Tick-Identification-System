@@ -17,8 +17,8 @@ from sklearn.metrics import f1_score,confusion_matrix
 from PIL import Image
 import numpy as np
 import torchvision.transforms as T
-output_dir="output/model/tick_species_3"
-output_model_p=f"{output_dir}/tick_species_3cls.pth"
+output_dir="output/tick_species_3_results"
+output_model_p=f"{output_dir}/model/tick_species_3cls.pth"
 CLASSES=["dermacentor_variabilis", "ixodes_scapularis", "amblyomma_americanum"]
 num_classes=3
 split_json="data/tick_species/split_3cls.json"
@@ -40,12 +40,14 @@ class SplitDataset(torch.utils.data.Dataset):
             
     def __len__(self):return len(self.items)
     def __getitem__(self, index):#DataLoader 在迭代时会自动调用 __getitem__来获取每个样本，然后组成 batch
-        path,label_index=self.items[index]
-        try:
-            img=Image.open(path).convert("RGB")#读取实际图像
-        except Exception:
-            return self.__getitem__((index+1)%len(self))
-        return self.transform(img),label_index#返回经过预处理的图像张量，可输入到神经网络中进行计算
+        for _ in range(len(self)):#坏图跳过：最多尝试一圈，避免无限递归
+            path,label_index=self.items[index]
+            try:
+                img=Image.open(path).convert("RGB")#读取实际图像
+                return self.transform(img),label_index#返回经过预处理的图像张量，可输入到神经网络中进行计算
+            except Exception:
+                index=(index+1)%len(self)
+        raise RuntimeError("整个数据集没有可打开的图片")
 
 
 def get_model():
@@ -73,7 +75,7 @@ def train_one_epoch(model,loader,criterion,optimizer):
 @torch.no_grad() #关闭梯度计算，节省显存
 def evaluate(model,loader):
     model.eval()#切换到评估模式
-    all_preds,all_labels=[],[]
+    all_preds,all_labels,all_probs=[],[],[]
     correct,n=0,0
     for imgs, labels in loader:
         imgs,labels =imgs.to(device),labels.to(device)
@@ -83,15 +85,19 @@ def evaluate(model,loader):
         n+=len(imgs)
         all_preds+=preds.cpu().tolist() #转为Python列表
         all_labels+=labels.cpu().tolist()#.cpu()从GPU搬到内存
+        all_probs.append(logits.softmax(dim=1).cpu())#保留每个样本的类别概率（阈值表用）
     acc= correct/n
     f1=f1_score(all_labels,all_preds,average='macro')
-    return acc,f1
+    probs=torch.cat(all_probs).max(dim=1).values.cpu().tolist() if all_probs else []
+    return acc, f1, all_preds, all_labels, probs
 
-def plot_confusion_matrix(all_labels,all_preds,class_names,save_path):
+def plot_confusion_matrix(all_preds,all_labels,class_names,save_path):
     """绘制混淆矩阵
     对角线是分对的，非对角线是分错的
     如果某一行都很暗，就是某类全分错了，数据有问题
     """
+    plt.rcParams['font.sans-serif']=['SimHei']#中文字体，否则"预测/真实"显示为方块
+    plt.rcParams['axes.unicode_minus']=False
     cm = confusion_matrix(all_labels, all_preds)   # shape (3,3)，行=真实，列=预测
     plt.figure(figsize=(6, 5))
     plt.imshow(cm, cmap="Blues")                   # 颜色越深 = 数量越多
@@ -102,12 +108,22 @@ def plot_confusion_matrix(all_labels,all_preds,class_names,save_path):
     plt.yticks(range(3), class_names)
     plt.xlabel("预测")
     plt.ylabel("真实")
-    plt.savefig(save_path, dpi=150, bbox_inches="tight")
+    plt.savefig(f"{save_path}/confusion_matrix", dpi=150, bbox_inches="tight")
 
+
+def save_val_csv(dataset,preds,labels,probs,out_path):
+    """保存验证集预测结果 CSV（fname,true,pred,prob），供阈值复现脚本使用"""
+    import csv
+    with open(out_path,"w",newline="",encoding="utf-8") as f:
+        w=csv.writer(f)
+        w.writerow(["fname","true","pred","prob"])
+        for (path,_),t,p,prob in zip(dataset.items,labels,preds,probs):
+            w.writerow([Path(path).name,CLASSES[t],CLASSES[p],round(prob*100,2)])
 
 def main():
     """主函数"""
-
+    print(device)
+    os.makedirs(f"{output_dir}/model",exist_ok=True)#输出目录先建好，避免保存时报错
     #图像的预处理方法
 # 标准 ImageNet 归一化参数
     normalize = T.Normalize(mean=[0.485, 0.456, 0.406],
@@ -150,13 +166,13 @@ def main():
     )
 
     test_loader=torch.utils.data.DataLoader(
-        train_dataset,#要加载的数据集对象（必须是dataset对象）
+        test_dataset,#要加载的数据集对象（必须是dataset对象）
         batch_size=BATCH_SIZE,#每个batch的样本数
         shuffle=False,#每个epoch是否打乱数据
         num_workers=NUM_WORKERS,#用于数据加载的子进程数
     )
     val_loader=torch.utils.data.DataLoader(
-        train_dataset,#要加载的数据集对象（必须是dataset对象）
+        val_dataset,#要加载的数据集对象（必须是dataset对象）
         batch_size=BATCH_SIZE,#每个batch的样本数
         shuffle=False,#每个epoch是否打乱数据
         num_workers=NUM_WORKERS,#用于数据加载的子进程数
@@ -176,11 +192,12 @@ def main():
     best_f1=0
     for epoch in range(EPOCHS):
         print(f"\n迭代次数：{epoch+1}/{EPOCHS}")
-        train_loss= train_one_epoch(model,train_loader,criterion,optimizer)
-        # val_acc,val_f1=evaluate(model,val_loader)
+        train_loss,train_acc= train_one_epoch(model,train_loader,criterion,optimizer)
+        val_acc, val_f1, _, _, _=evaluate(model,val_loader)
         scheduler.step()#在每个训练周期（epoch）结束时，更新学习率
+        print(f"train_loss: {train_loss:.4f} | train_acc: {train_acc:.4f} | val_acc: {val_acc:.4f} | val_f1: {val_f1:.4f}")#每轮指标打印，便于观察收敛
         if (epoch + 1) % 5 == 0:#每 5 个 epoch 保存检查点（包含模型和优化器状态）。
-            checkpoint_path = f"{output_dir}/tick_species_3cls_epoch_{epoch+1}.pth"
+            checkpoint_path = f"{output_dir}/model/tick_species_3cls_epoch_{epoch+1}.pth"
             torch.save({
                 'epoch': epoch + 1,
                 'model_state_dict': model.state_dict(),
@@ -188,20 +205,16 @@ def main():
                 'loss': train_loss,
             }, checkpoint_path)
             print(f"保存检查点: {checkpoint_path}")
-        # if val_f1>best_f1:#用 val F1 选最优（类别不均衡时比 acc 合理）
-        #     best_f1=val_f1
-        #     torch.save(model.state_dict(), output_model_p)
-    #保存模型权重
-    torch.save(model.state_dict(), output_model_p)
+        if val_f1>best_f1:#用 val F1 选最优（类别不均衡时比 acc 合理）
+            best_f1=val_f1
+            torch.save(model.state_dict(), output_model_p)
     #评估测试集
-    model.load_state_dict(torch.load(output_model_p))
-    test_acc, test_f1 = evaluate(model, test_loader)
-
-
-
-
-
-
-
+    model.load_state_dict(torch.load(output_model_p,weights_only=True))
+    #验证集预测 CSV（阈值复现脚本的输入）
+    val_acc, val_f1,val_preds, val_labels, val_probs = evaluate(model, val_loader)
+    save_val_csv(val_dataset,val_preds,val_labels,val_probs,f"{output_dir}/val_predictions.csv")
+    test_acc, test_f1,test_all_preds, test_all_labels, _ = evaluate(model, test_loader)
+    plot_confusion_matrix(test_all_preds,test_all_labels,CLASSES,output_dir)
+    print(f"测试集评估结果:准确率（Accuracy）:{test_acc: .4f} F1分数：{test_f1:.4f}")
 if __name__=="__main__":
     main()
