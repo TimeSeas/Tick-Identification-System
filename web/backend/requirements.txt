@@ -1,0 +1,13 @@
+# Web 后端依赖（与本地 tick_detection 环境实测版本对齐）
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+python-multipart==0.0.32
+sqlalchemy==2.0.52
+pydantic-settings==2.15.0
+pydantic==2.13.5
+
+# 以下为本地环境已有、Docker 镜像需另行处理的依赖（见 web/README.md 说明）：
+# torch / torchvision —— 体积大（~2.5GB），Docker 里建议 CPU 版单独安装：
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+# opencv-python / numpy / pillow —— 模型推理与可视化需要
+# pytest / httpx —— 仅测试用（tests 目录）
