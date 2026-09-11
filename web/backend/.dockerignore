@@ -1,0 +1,6 @@
+# 构建上下文排除清单
+__pycache__
+*.pyc
+*.db
+tests
+.git

@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.schemas import ok, fail
-from app.routers import analyze
+from app.routers import analyze, history
 
 
 @asynccontextmanager
@@ -21,8 +21,12 @@ async def lifespan(app: FastAPI):
     from app.utils.cn_map import get_cn_map
 
     try:
-        
-        detector = Detector(settings.detector_path)
+        # 建表（表不存在才创建，已存在跳过）
+        from app.database import Base, engine
+        from app import models  # noqa: F401   import 以注册表定义
+        Base.metadata.create_all(engine)
+
+        detector = Detector(settings.detector_path, tile=settings.detect_tile)
         classifier = SpeciesClassifier(
             settings.species_model_path, settings.species_split_json)
         app.state.pipeline = Pipeline(#在前面创建蜱虫检测器和蜱虫分类器这两个实例后，传入Pipeline构造函数
@@ -50,6 +54,7 @@ app.add_middleware(
 #allow_methods=["*"]：允许所有 HTTP 方法
 #allow_headers=["*"]：允许所有请求头。
 app.include_router(analyze.router)
+app.include_router(history.router)
 
 
 @app.get("/healthz", tags=["运维"])

@@ -15,8 +15,16 @@ NO_TICK_TEXT = "未检测到蜱虫"
 
 
 def load_font(size=22):
-    """加载中文字体（Windows 黑体），失败回退默认字体"""
-    for fp in ["C:/Windows/Fonts/simhei.ttf", "C:/Windows/Fonts/msyh.ttc"]:
+    """加载中文字体：本地开发用 Windows 字体，容器内用 Noto CJK
+    找不到任何中文字体时回退 PIL 默认字体（中文会变方块，仅作最后兜底）"""
+    for fp in [
+        # Linux 容器（Dockerfile 已安装 fonts-noto-cjk）
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        # Windows 本地开发
+        "C:/Windows/Fonts/simhei.ttf",
+        "C:/Windows/Fonts/msyh.ttc",
+    ]:
         if Path(fp).exists():
             return ImageFont.truetype(fp, size)
     return ImageFont.load_default()

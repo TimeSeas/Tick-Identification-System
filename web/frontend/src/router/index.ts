@@ -14,8 +14,12 @@ const router = createRouter({
       component: AnalyzeView,
       meta: { title: '蜱虫识别' },
     },
-    // TODO(M5)：历史页
-    // { path: '/history', name: 'history', component: () => import('../views/HistoryView.vue') },
+    {
+      path: '/history',
+      name: 'history',
+      component: () => import('../views/HistoryView.vue'),  // 懒加载：访问时才下载该页代码
+      meta: { title: '历史记录' },
+    },
   ],
 })
 

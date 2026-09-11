@@ -4,7 +4,7 @@
  */
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
-import type { AnalyzeResult, ApiResponse } from '../types'
+import type { AnalyzeResult, ApiResponse, HistoryDetail, HistoryListData } from '../types'
 
 const http = axios.create({
   baseURL: '/api/v1',        // 开发环境由 Vite 代理转发到后端 8000
@@ -15,7 +15,7 @@ const http = axios.create({
 http.interceptors.response.use(
   (resp) => {
     const body = resp.data as ApiResponse
-    if (body.code !== 0) {                       // 后端约定的成功码是 0
+    if (body.code !== 200) {                       // 后端约定的成功码是 200
       ElMessage.error(body.msg || '请求失败')
       return Promise.reject(new Error(body.msg))
     }
@@ -34,4 +34,16 @@ export async function analyzeImage(file: File): Promise<AnalyzeResult> {
   // 注意：FormData 上传不能手动设 Content-Type，axios 会自动带 boundary
   const resp = await http.post('/analyze', form)
   return resp as unknown as AnalyzeResult
+}
+
+/** 历史列表（分页） */
+export async function getHistory(page = 1, size = 10): Promise<HistoryListData> {
+  const resp = await http.get('/history', { params: { page, size } })
+  return resp as unknown as HistoryListData
+}
+
+/** 历史详情（含标注图与完整检测结果） */
+export async function getHistoryDetail(id: number): Promise<HistoryDetail> {
+  const resp = await http.get(`/history/${id}`)
+  return resp as unknown as HistoryDetail
 }

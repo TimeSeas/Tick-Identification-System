@@ -1,12 +1,36 @@
 /**
  * 全局 TS 类型定义：与后端 app/schemas.py 的响应结构一一对应
- * 后端统一响应包 {code, msg, data}，code === 0 表示成功
+ * 后端统一响应包 {code, msg, data}，code === 200 表示成功
  */
 
 export interface ApiResponse<T = unknown> {
   code: number
   msg: string
   data: T
+}
+
+/** 历史列表单条摘要（后端 /history 列表接口） */
+export interface HistorySummary {
+  id: number
+  filename: string
+  request_id: string
+  created_at: string
+  detection_count: number
+}
+
+/** 历史列表响应 data */
+export interface HistoryListData {
+  items: HistorySummary[]
+  total: number
+  page: number
+  size: number
+}
+
+/** 历史详情（后端 /history/{id} 接口）：完整 AnalyzeResult + 记录元信息 */
+export interface HistoryDetail extends AnalyzeResult {
+  record_id: number
+  filename: string
+  created_at: string
 }
 
 /** 单个蜱虫检测结果 */

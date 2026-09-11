@@ -1,0 +1,36 @@
+# 蜱虫识别系统部署编排：backend（uvicorn）+ frontend（nginx）
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      # 容器内路径由卷挂载决定，用环境变量覆盖 config.py 默认值
+      - DB_URL=sqlite:////app/db/data.db
+      - DETECTOR_PATH=/app/models/mask_rcnn_ticks.pth
+      - SPECIES_MODEL_PATH=/app/models/tick_species_31_weighted/model/tick_species_best.pth
+      - THRESHOLDS_PATH=/app/models/tick_species_31_weighted/thresholds.csv
+      - SPECIES_SPLIT_JSON=/app/data/split_31cls.json
+      - CN_TABLE_PATH=/app/data/物种中文名对照表.csv
+    volumes:
+      - ../output:/app/models:ro          # 模型权重与阈值表（只读挂载）
+      - ../data/tick_species:/app/data:ro # 划分文件与中文对照表（只读挂载）
+      - dbdata:/app/db                    # SQLite 数据持久化
+      # torch 预训练权重缓存（宿主已下载，挂载后容器启动不再联网下载 100MB）
+      - ~/.cache/torch:/root/.cache/torch:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped            # 崩溃/重启电脑后自动拉起（手动 docker stop 除外）
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"                          # 浏览器访问 http://localhost:8080
+    depends_on:
+      - backend
+
+volumes:
+  dbdata:

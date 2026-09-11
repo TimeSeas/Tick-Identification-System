@@ -24,12 +24,12 @@ from sklearn.metrics import f1_score,confusion_matrix
 from torchvision.models import ResNet50_Weights
 
 # ==================== 配置区 ====================
-SPLIT_JSON="data/tick_species/split_31cls.json"  # 划分文件，由 scripts/split_species.py 生成
-OUTPUT_DIR="output/tick_species_31_weighted"      # 输出目录（换实验时改名，避免覆盖）
-INPUT_SIZE=224        # 输入分辨率：224 / 448（细粒度 448 更准，8GB 显存 batch 降到 16）
+SPLIT_JSON="data/tick_species/split_clean.json"  # 划分文件，由 scripts/split_species.py 生成（清洗后 28 类）
+OUTPUT_DIR="output/tick_species_clean_448"       # 输出目录（换实验时改名，避免覆盖）
+INPUT_SIZE=448        # 输入分辨率：224 / 448（细粒度 448 更准，8GB 显存 batch 降到 16）
 WEIGHTED=True         # 是否按类频率倒数加权采样（对抗长尾分布）
 LABEL_SMOOTHING=0.1   # 标签平滑系数，0 为关闭（防止过拟合/过度自信）
-BATCH_SIZE,LR,EPOCHS,SEED,NUM_WORKERS=32,1e-4,20,42,2
+BATCH_SIZE,LR,EPOCHS,SEED,NUM_WORKERS=16,1e-4,20,42,2
 #批次大小（每次梯度更新所使用的样本数量）、学习率（控制参数更新的步长大小）、
 #训练轮数（整个训练集被完整遍历的次数）、随机种子（保证划分/增强可复现）、用于加载的主进程数
 # ================================================

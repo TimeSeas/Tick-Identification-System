@@ -73,6 +73,19 @@ python scripts/verify_coco_dataset.py
 python src/train/检查数据集有无多边形.py
 ```
 
+### Web 系统
+
+```bash
+# 后端（模型常驻内存，启动约 10 秒）
+cd web/backend && uvicorn app.main:app --reload --port 8000   # 接口文档 http://localhost:8000/docs
+
+# 前端（Vite dev，/api 自动代理到 8000）
+cd web/frontend && npm run dev                                # http://localhost:5173
+
+# Docker 一键部署（nginx:8080 + 后端:8000）
+cd web && docker compose up --build
+```
+
 ### SAM 数据增强
 
 ```bash
@@ -106,6 +119,8 @@ python scripts/sam_auto_label.py --mode auto --input-dirs archive2/dataset/train
 | 论文支撑材料 | `论文研究材料/SAM自动标注原理与效果分析.md`（原理、实验结果、原因分析）、`论文研究材料/研究成果与论文素材.md`（成果总览、实验数据、图表清单、章节映射，持续更新） |
 | 调参教程 | `调参教程/SAM标注代码修改与调参教程.md`（参数速查、改码练习） |
 | 毕业设计规划 | `毕业设计/毕业设计系统规划.md`（选题、架构、8 个 WP、论文结构、进度对照） |
+| 命令速查 | `开发进程/命令.md`（环境/训练/推理/SAM/数据/前后端/Docker/数据库/端口排查，全部日常命令） |
+| 简历素材 | `开发进程/简历项目经历素材.md`（项目描述、量化成果、简历条目模板、STAR 故事、面试题预答） |
 | 自动标注AI模型 | `models/yolov8m.pt`、`models/yolov8m.onnx`、`models/classes.txt`（28类）、`models/yolov8_custom.yaml` |
 | SAM 权重与脚本 | `models/sam_vit_b_01ec64.pth`（vit_b，375MB）、`scripts/sam_auto_label.py`（fill/auto 两模式） |
 | 数据工具脚本 | `scripts/verify_coco_dataset.py`、`scripts/convert_folder_to_coco.py`、`scripts/download_gbif_images.py`（GBIF 归档包图片下载）、`scripts/download_gbif_species.py`（GBIF API 按物种名下载，任意蜱种）、`scripts/extract_fgc_ixodidae.py`（HF lance 解包）——均断点续跑 |
@@ -113,6 +128,7 @@ python scripts/sam_auto_label.py --mode auto --input-dirs archive2/dataset/train
 | 蜱种分类训练 | `src/train/train_tick_species.py`（3 类基线）、`src/train/train_tick_species_all.py`（通用多类别，支持加权采样/标签平滑/输入分辨率，31 类用）；划分脚本 `scripts/split_species.py` → `data/tick_species/split_{3,31}cls.json` |
 | 蜱种推理演示 | `src/inference/infer_tick_species.py`（测试集抽样推理，预览图标注真实/预测蜱种含中文名，绿对红错 + summary.csv） |
 | 商业计划书生成 | `scripts/generate_business_plan.py` → `output/智蜱卫士_商业计划书.docx` |
+| Web 系统（WP6） | `web/backend/`（FastAPI+SQLAlchemy，M1+M2 级联推理 + 历史记录）、`web/frontend/`（Vue3+TS+Element Plus）、`web/docker-compose.yml`（nginx+uvicorn 两容器）、`web/Docker部署指南.md`（装什么/怎么写/怎么跑/怎么维护/怎么用） |
 
 ## 架构
 

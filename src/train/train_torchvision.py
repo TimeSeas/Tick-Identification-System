@@ -38,7 +38,7 @@ NUM_EPOCHS = 10
 LEARNING_RATE = 0.001
 MOMENTUM = 0.9
 WEIGHT_DECAY = 0.0005
-NUM_WORKERS = 2
+NUM_WORKERS = 0  # 0=主进程加载：Windows 下 worker 进程被杀后易成孤儿占内存，本机 16GB 用主进程更稳
 
 # Multi-class settings
 #默认数据集路径、超参数（批量大小、学习率等）以全局变量定义。
@@ -128,7 +128,9 @@ class TickDetectionDataset(torch.utils.data.Dataset):#自定义数据集类
 
             boxes.append([x, y, x + w, y + h])
             labels.append(ann['category_id'])
-            mask = coco_mask.decode(ann['segmentation'])
+            # annToMask 同时支持多边形列表与 RLE 两种 segmentation 格式
+            # （之前用 coco_mask.decode 只认 RLE，SAM 补全多边形后此处会崩）
+            mask = self.coco.annToMask(ann)
             masks.append(mask)
 
         if len(boxes) == 0:
@@ -163,6 +165,9 @@ def get_transform(train=True):
     if train:
         return transforms.Compose([#将PIL图像或NumPy数组转换为PyTorch张量
             transforms.ToTensor(),
+            # 小目标鲁棒性增强：水平翻转 + 温和色彩抖动（检测模型 v2 新增）
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
         ])
     else:
         return transforms.Compose([
@@ -183,6 +188,10 @@ def get_model(num_classes=2):
     hidden_layer = 256
     model.roi_heads.mask_predictor = MaskRCNNPredictor(in_features_mask, hidden_layer, num_classes)
 #替换分类头（box predictor）和掩码头（mask predictor）以适配自定义类别数（包含背景）。
+    # 小目标检测优化（v2）：提高训练/推理输入分辨率，让蜱虫在特征图上保留更多像素
+    # max_size 用 1200：16GB 内存机器上更大尺寸会因峰值内存过高被系统杀进程
+    model.transform.min_size = (1024,)
+    model.transform.max_size = 1200
     return model
 
 def train_one_epoch(model, optimizer, data_loader, device, epoch):

@@ -85,7 +85,11 @@ anylabeling
 本机已安装独立 conda 环境 `x-anylabeling`（位于用户目录，不在本项目内），启动命令：
 
 ```bash
-source ~/.bash_profile && conda activate x-anylabeling && cd /c/Users/a/X-AnyLabeling && python anylabeling/app.py
+用anaconda环境
+conda activate x-anylabeling
+cd C:\Users\a\X-AnyLabeling
+python anylabeling/app.py
+# source ~/.bash_profile && conda activate x-anylabeling && cd /c/Users/a/X-AnyLabeling && python anylabeling/app.py
 ```
 
 ---

@@ -170,9 +170,10 @@ def main():
     print("\n" + "=" * 60)
     print("EVALUATION SUMMARY")
     print("=" * 60)
-    print(f"mAP@0.50: {metrics.stats[0]:.4f}")
-    print(f"mAP@0.75: {metrics.stats[1]:.4f}")
-    print(f"mAP@0.50:0.95: {metrics.stats[2]:.4f}")
+    # COCOeval.stats 顺序：0=mAP@[.50:.95], 1=mAP@.50, 2=mAP@.75（此前标反，已修正）
+    print(f"mAP@[0.50:0.95]: {metrics.stats[0]:.4f}")
+    print(f"mAP@0.50: {metrics.stats[1]:.4f}")
+    print(f"mAP@0.75: {metrics.stats[2]:.4f}")
 
 if __name__ == "__main__":
     main()

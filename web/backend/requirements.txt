@@ -6,8 +6,11 @@ sqlalchemy==2.0.52
 pydantic-settings==2.15.0
 pydantic==2.13.5
 
-# 以下为本地环境已有、Docker 镜像需另行处理的依赖（见 web/README.md 说明）：
-# torch / torchvision —— 体积大（~2.5GB），Docker 里建议 CPU 版单独安装：
-#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-# opencv-python / numpy / pillow —— 模型推理与可视化需要
+# 推理与可视化所需（本地环境已有，容器内需要显式安装）
+opencv-python==4.10.0.84
+pillow==11.1.0
+numpy==2.2.1
+
+# 以下依赖在 Dockerfile 中单独安装（体积大，见 web/README.md 说明）：
+# torch / torchvision —— CPU 版，与本地 cu118 版同大版本（2.5.x）保证权重兼容
 # pytest / httpx —— 仅测试用（tests 目录）

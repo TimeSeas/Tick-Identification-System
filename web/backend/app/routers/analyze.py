@@ -6,10 +6,14 @@
 """
 import base64
 import io
+import json
 import uuid
 
-from fastapi import APIRouter, File, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Request, UploadFile
+from sqlalchemy.orm import Session
 
+from app.database import get_db
+from app.models import AnalysisRecord
 from app.schemas import ok, fail
 from app.utils import visualize
 
@@ -20,7 +24,8 @@ router = APIRouter(prefix="/api/v1", tags=["分析"])
 
 
 @router.post("/analyze")
-async def analyze(request: Request, file: UploadFile = File(...)):
+async def analyze(request: Request, file: UploadFile = File(...),
+                  db: Session = Depends(get_db)):
     # 1. 上传校验：类型与大小，不合法直接拒绝（企业规范：入口处拦截，不污染推理链路）
     if file.content_type not in ALLOWED_TYPES:
         return fail(f"不支持的图片类型: {file.content_type}", 400)
@@ -36,6 +41,13 @@ async def analyze(request: Request, file: UploadFile = File(...)):
     result["result_image_base64"] = result_img_b64
     result["request_id"] = uuid.uuid4().hex[:12]
 
-    # 4. TODO(M3)：此处追加历史记录入库（SQLAlchemy）
+    # 4. 历史记录入库（完整结果序列化存储；request_id 已在上面生成）
+    record = AnalysisRecord(
+        filename=file.filename or "unknown",
+        request_id=result["request_id"],
+        result_json=json.dumps(result, ensure_ascii=False),
+    )
+    db.add(record)
+    db.commit()
 
     return ok(result)
