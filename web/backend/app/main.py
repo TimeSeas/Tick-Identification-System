@@ -17,6 +17,7 @@ async def lifespan(app: FastAPI):
     """应用生命周期：启动时加载全部模型（只加载一次，常驻内存），关闭时释放"""
     from app.services.detector import Detector
     from app.services.classifier import SpeciesClassifier
+    from app.services.insect_classifier import InsectClassifier
     from app.services.pipeline import Pipeline
     from app.utils.cn_map import get_cn_map
 
@@ -29,8 +30,10 @@ async def lifespan(app: FastAPI):
         detector = Detector(settings.detector_path, tile=settings.detect_tile)
         classifier = SpeciesClassifier(
             settings.species_model_path, settings.species_split_json)
+        insect = InsectClassifier(
+            settings.insect_model_path, settings.insect_split_json)
         app.state.pipeline = Pipeline(#在前面创建蜱虫检测器和蜱虫分类器这两个实例后，传入Pipeline构造函数
-            detector, classifier, settings.thresholds_path, get_cn_map())
+            insect, detector, classifier, settings.thresholds_path, get_cn_map())
     except Exception as e:
         # 模型缺失/损坏时快速失败并给出明确提示（fail-fast，比运行中崩溃好排查）
         raise RuntimeError(f"模型加载失败: {e}") from e

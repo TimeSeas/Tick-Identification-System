@@ -37,7 +37,11 @@ async def analyze(request: Request, file: UploadFile = File(...),
     result = request.app.state.pipeline.analyze(data)
 
     # 3. 生成标注可视化图（base64，前端可直接渲染）
-    result_img_b64 = visualize.draw_result(data, result["detections"])
+    insect = result.get("insect")
+    top_label = None
+    if not result["detections"] and insect and insect.get("slug") != "tick":
+        top_label = f"识别为{insect['cn']}（非蜱虫）"
+    result_img_b64 = visualize.draw_result(data, result["detections"], top_label)
     result["result_image_base64"] = result_img_b64
     result["request_id"] = uuid.uuid4().hex[:12]
 

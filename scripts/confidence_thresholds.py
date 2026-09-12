@@ -57,7 +57,8 @@ def threshold_for_class(df, tau, mc_bound):
     else:
         # 没有阈值能把 mc 压到 bound 以下：取 mc 最小的阈值
         idx = np.argmin(mc[:-1])
-    return tau[idx], cc[idx], mc[idx], uc[idx], cc[idx] / (1 - uc[idx])
+    acc = cc[idx] / (1 - uc[idx]) if uc[idx] < 1 else 0.0  # 全部转不确定时无准确率可言
+    return tau[idx], cc[idx], mc[idx], uc[idx], acc
 
 
 def compute_thresholds(df, bounds=(10, 5, 2)):

@@ -30,8 +30,10 @@ def load_font(size=22):
     return ImageFont.load_default()
 
 
-def draw_result(image_bytes: bytes, detections: list[dict]) -> str:
-    """画标注图并返回 base64 字符串（data:image/jpeg;base64,xxx 格式，前端可直接用）"""
+def draw_result(image_bytes: bytes, detections: list[dict], top_label: str = None) -> str:
+    """画标注图并返回 base64 字符串（data:image/jpeg;base64,xxx 格式，前端可直接用）
+    top_label：无检测框时的顶部提示文字（如"这是蚜虫（非蜱虫）"），缺省用"未检测到蜱虫"
+    """
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     draw = ImageDraw.Draw(img)
     font = load_font(22)
@@ -52,9 +54,9 @@ def draw_result(image_bytes: bytes, detections: list[dict]) -> str:
             draw.rectangle([x1, ty, x1 + w, ty + h], fill=(0, 0, 0))
             draw.text((x1 + 6, ty + 3), label, fill=(255, 255, 255), font=font)
     else:
-        # 未检出：原图顶部加提示条
+        # 无检测框：原图顶部加提示条
         draw.rectangle([0, 0, img.width, 40], fill=(60, 60, 60))
-        draw.text((12, 8), NO_TICK_TEXT, fill=(255, 255, 255), font=font)
+        draw.text((12, 8), top_label or NO_TICK_TEXT, fill=(255, 255, 255), font=font)
 
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=90)

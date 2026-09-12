@@ -4,6 +4,8 @@ from torchvision.models.detection import maskrcnn_resnet50_fpn
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 import numpy as np
+DEDUP_IOU = 0.3   # 重叠去重阈值：大像素蜱虫重复检出框实测 IoU 0.476（0.5 拦不住）；
+                  # 相邻两只真蜱虫的框 IoU 通常 <0.1，不会被误合并
 class Detector:
     """蜱虫检测，模型推理，只检测是否有蜱虫，有几个
     tile>1 时启用切块推理（小目标检测路线 A）：
@@ -28,30 +30,32 @@ class Detector:
         model.roi_heads.mask_predictor = MaskRCNNPredictor(in_features_mask, 256, num_classes=2)
         #加载权重
         model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True))
+        model.transform.min_size = (1024,)   # ← 加：恢复训练分辨率，否则默认 800（train-serve skew）
+        model.transform.max_size = 1200      # ← 加
         model.to(self.device).eval()
         return model
 
-    def detect(self,img_rgb:np.ndarray)->list[dict]:
-        """主入口：tile=1 直接全图推理；tile>1 切块推理合并"""
-        if self.tile <= 1:
-            return self._detect(img_rgb)
+    def detect(self,img_rgb:np.ndarray,tile:int=None)->list[dict]:
+        """主入口：tile=1 全图推理（大目标绝不能切碎）；tile>1 切块推理合并（小目标补偿）
+        tile 为 None 时用构造时的默认切分数
+        两个分支都做重叠去重：同一只大蜱虫会被模型重复检出多个嵌套框"""
+        if tile is None:
+            tile = self.tile
+        if tile <= 1:
+            return _dedup(self._detect(img_rgb))
         h, w = img_rgb.shape[:2]
-        th, tw = int(np.ceil(h / self.tile)), int(np.ceil(w / self.tile))
+        th, tw = int(np.ceil(h / tile)), int(np.ceil(w / tile))
         merged = []
-        for i in range(self.tile):
-            for j in range(self.tile):
+        for i in range(tile):
+            for j in range(tile):
                 y1, x1 = i * th, j * tw
                 y2, x2 = min(y1 + th, h), min(x1 + tw, w)
                 for d in self._detect(img_rgb[y1:y2, x1:x2]):
                     b = d["bbox"]
                     d["bbox"] = [b[0] + x1, b[1] + y1, b[2] + x1, b[3] + y1]  # 坐标平移回原图
                     merged.append(d)
-        # 跨块边界同一只蜱会被相邻块检出两次：IoU>0.5 视为重复，保留高分
-        deduped = []
-        for d in sorted(merged, key=lambda x: -x["score"]):
-            if all(_iou(d["bbox"], k["bbox"]) <= 0.5 for k in deduped):
-                deduped.append(d)
-        return sorted(deduped, key=lambda x: -x["score"])
+        # 跨块边界同一只蜱会被相邻块检出两次：与全图路径用同一个去重
+        return _dedup(merged)
 
     def _detect(self,img_rgb:np.ndarray)->list[dict]:
         #读取图片RGB转成张量
@@ -79,6 +83,15 @@ class Detector:
             })
         results.sort(key=lambda d:d["score"],reverse=True)
         return results
+
+
+def _dedup(dets:list[dict])->list[dict]:
+    """重叠框去重：按分数从高到低贪心，与已保留框 IoU>DEDUP_IOU 的视为同一只蜱的重复检出"""
+    deduped = []
+    for d in sorted(dets, key=lambda x: -x["score"]):
+        if all(_iou(d["bbox"], k["bbox"]) <= DEDUP_IOU for k in deduped):
+            deduped.append(d)
+    return deduped
 
 
 def _iou(box_a, box_b):

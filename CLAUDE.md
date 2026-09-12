@@ -121,14 +121,16 @@ python scripts/sam_auto_label.py --mode auto --input-dirs archive2/dataset/train
 | 毕业设计规划 | `毕业设计/毕业设计系统规划.md`（选题、架构、8 个 WP、论文结构、进度对照） |
 | 命令速查 | `开发进程/命令.md`（环境/训练/推理/SAM/数据/前后端/Docker/数据库/端口排查，全部日常命令） |
 | 简历素材 | `开发进程/简历项目经历素材.md`（项目描述、量化成果、简历条目模板、STAR 故事、面试题预答） |
+| 求职准备 | `开发进程/求职准备计划.md`（无实习破局、技术栈三档处理法、三层追问、两周冲刺日程） |
 | 自动标注AI模型 | `models/yolov8m.pt`、`models/yolov8m.onnx`、`models/classes.txt`（28类）、`models/yolov8_custom.yaml` |
 | SAM 权重与脚本 | `models/sam_vit_b_01ec64.pth`（vit_b，375MB）、`scripts/sam_auto_label.py`（fill/auto 两模式） |
 | 数据工具脚本 | `scripts/verify_coco_dataset.py`、`scripts/convert_folder_to_coco.py`、`scripts/download_gbif_images.py`（GBIF 归档包图片下载）、`scripts/download_gbif_species.py`（GBIF API 按物种名下载，任意蜱种）、`scripts/extract_fgc_ixodidae.py`（HF lance 解包）——均断点续跑 |
 | 置信阈值脚本 | `scripts/confidence_thresholds.py`（复现 TickIDNet 分物种置信阈值方法，WP2 用；输入验证集预测 CSV，输出各物种阈值表） |
-| 蜱种分类训练 | `src/train/train_tick_species.py`（3 类基线）、`src/train/train_tick_species_all.py`（通用多类别，支持加权采样/标签平滑/输入分辨率，31 类用）；划分脚本 `scripts/split_species.py` → `data/tick_species/split_{3,31}cls.json` |
+| 蜱种分类训练 | `src/train/train_tick_species.py`（3 类基线）、`src/train/train_tick_species_all.py`（通用多类别，支持加权采样/标签平滑/输入分辨率，31 类用）；划分脚本 `scripts/split_species.py` → `data/tick_species/split_{3,31,clean}.json` |
+| 昆虫粗分类训练 | `src/train/train_insect_classifier.py`（28 类文件夹标签，Web 级联第一级）；划分脚本 `scripts/split_insects.py` → `data/insects_split.json`；质检脚本 `scripts/qc_sam_review.py`（SAM 复核疑点清单） |
 | 蜱种推理演示 | `src/inference/infer_tick_species.py`（测试集抽样推理，预览图标注真实/预测蜱种含中文名，绿对红错 + summary.csv） |
 | 商业计划书生成 | `scripts/generate_business_plan.py` → `output/智蜱卫士_商业计划书.docx` |
-| Web 系统（WP6） | `web/backend/`（FastAPI+SQLAlchemy，M1+M2 级联推理 + 历史记录）、`web/frontend/`（Vue3+TS+Element Plus）、`web/docker-compose.yml`（nginx+uvicorn 两容器）、`web/Docker部署指南.md`（装什么/怎么写/怎么跑/怎么维护/怎么用） |
+| Web 系统（WP6） | `web/backend/`（FastAPI+SQLAlchemy，检测优先级联：全图检测→切块补偿→蜱种+阈值→三层误检防御→粗分类兜底；历史记录）、`web/frontend/`（Vue3+TS+Element Plus）、`web/docker-compose.yml`（nginx+uvicorn 两容器）、`web/Docker部署指南.md`（装什么/怎么写/怎么跑/怎么维护/怎么用） |
 
 ## 架构
 
@@ -151,6 +153,9 @@ python scripts/sam_auto_label.py --mode auto --input-dirs archive2/dataset/train
 - 主力：torchvision Mask R-CNN + ResNet-50-FPN 主干网络
 - 单类别模式：背景 + 蜱虫（2类）
 - 多类别模式：规划中，代码未实现（见「多类别支持」）
+- 现役模型：`output/det_v3/mask_rcnn_ticks_v3.pth`（1024 分辨率 + 579 张小目标补标，mAP@0.50=0.866，@1024 公平评估）
+- ⚠️ 训练/推理分辨率坑：transform 的 min_size/max_size **不随 state_dict 保存**，重建模型默认回到 800/1333——评估与 Web 推理都必须在 load_state_dict 后手动 `model.transform.min_size=(1024,)`、`max_size=1200`（detector.py 已修，`src/eval/evaluate_model.py` 待修）
+- Web 检测器 `detector.py`：`detect(img_rgb, tile)` 支持全图（tile=1）/切块（tile=2）按需切换；全图与切块路径均带 IoU=0.3 重叠去重（大目标重复检出框实测 IoU 0.476）
 
 ## 数据结构
 

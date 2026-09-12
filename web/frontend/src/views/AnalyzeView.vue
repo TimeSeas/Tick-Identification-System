@@ -102,6 +102,12 @@ const hasDetections = computed(() => (result.value?.detections.length ?? 0) > 0)
       <!-- 风险建议 -->
       <el-alert :title="result!.risk_advice" type="warning" :closable="false" style="margin-top: 16px" />
 
+      <!-- 昆虫粗分类结果（非蜱虫分支时突出显示） -->
+      <el-alert v-if="result!.insect && !hasDetections" :closable="false"
+                :type="result!.insect.slug === 'tick' ? 'warning' : 'success'"
+                :title="`识别为${result!.insect.cn}（置信度 ${result!.insect.confidence}%）`"
+                style="margin-top: 16px" />
+
       <!-- 识别结果列表 -->
       <div style="margin-top: 16px">
         <h4>识别结果</h4>

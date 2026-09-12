@@ -43,10 +43,18 @@ export interface Detection {
   status: 'confirmed' | 'uncertain'        // 分物种阈值决策结果
 }
 
+/** 昆虫粗分类结果（级联第一级） */
+export interface InsectInfo {
+  slug: string
+  cn: string
+  confidence: number
+}
+
 /** POST /api/v1/analyze 返回的 data 字段 */
 export interface AnalyzeResult {
   request_id: string
   detections: Detection[]
+  insect?: InsectInfo            // 粗分类结果；非蜱虫分支时 detections 为空、insect 有值
   risk_advice: string
   result_image_base64: string   // data:image/jpeg;base64,xxx 可直接用于 <img :src>
 }

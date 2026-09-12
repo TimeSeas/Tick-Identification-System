@@ -244,14 +244,17 @@ def run_auto(input_dirs, classes, per_class, seed, checkpoint, out_dir, device):
                         "points": [[poly[i], poly[i + 1]] for i in range(0, len(poly), 2)],
                         "group_id": None, "description": "", "difficult": False,
                         "shape_type": "polygon", "flags": {}, "attributes": {},
-                        "score": round(float(m["predicted_iou"]), 4)})
+                        "score": round(float(m["predicted_iou"]), 4), "visible": True})
                 kept += 1
 
-            # X-AnyLabeling 复核副本（与 archive2 现有 per-image JSON 同构）
+            # X-AnyLabeling 复核副本（含 2.4.x 校验必需字段）
             cls_review = review_dir / slug
             cls_review.mkdir(exist_ok=True)
             shutil.copy2(f, cls_review / f.name)
-            json.dump({"version": "2.3.6", "flags": {}, "shapes": shapes},
+            json.dump({"version": "2.4.2", "flags": {},
+                       "imagePath": f.name, "imageData": None,
+                       "imageHeight": h, "imageWidth": w,
+                       "shapes": shapes},
                       open(cls_review / (f.stem + ".json"), "w", encoding="utf-8"),
                       ensure_ascii=False, indent=2)
 
