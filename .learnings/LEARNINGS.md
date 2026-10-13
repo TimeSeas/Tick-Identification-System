@@ -132,3 +132,62 @@ Windows 本机 shell 两个坑：conda run 不支持 -c 参数内换行；Git Ba
 - Last-Seen: 2026-09-12
 
 ---
+
+## [LRN-20261013-001] insight
+
+**Logged**: 2026-10-13T00:00:00Z
+**Priority**: low
+**Status**: pending
+**Area**: data
+
+### Summary
+蜱种数据集张数项目中存在三个版本（CLAUDE.md 7623 / 论文素材 8055 / 实际 7866），已对账：7866 为当前真实值
+
+### Details
+- 论文素材的 8055 张是 2026-09-12 清洗前快照；检测辅助清洗的待删除清单（189 行 `output/species_cleaning/待删除清单.csv`，零检出噪声图）**已执行**（清单内文件已不存在），8055 − 189 = 7866 与实测吻合
+- 实测方法：`find data/tick_species -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \) | wc -l` = 7866
+- 物种目录数：175 个目录中 2 个为空（dermacentor_silvarum、hyalomma_asiaticum——清洗后无图），非空物种 = 173
+- CLAUDE.md 与 毕业设计系统规划.md 的 7623 为更早快照，已于 2026-10-13 按实测修正为 7866
+
+### Suggested Action
+引用蜱种数据规模时以"173 物种 / 7866 张（清洗后）"为准；论文素材的 8055 张保留为 2026-09-12 清洗前快照（该文档按日期记录，不追溯改）
+
+### Metadata
+- Source: user_request（README 更新触发的数据盘点）
+- Related Files: README.md, CLAUDE.md, 论文研究材料/研究成果与论文素材.md §2.3, output/species_cleaning/
+- Tags: tick-species, dataset-count, data-cleaning, doc-drift
+- Recurrence-Count: 1
+- First-Seen: 2026-10-13
+- Last-Seen: 2026-10-13
+
+---
+
+## [LRN-20261013-002] insight
+
+**Logged**: 2026-10-13T00:00:00Z
+**Priority**: high
+**Status**: pending
+**Area**: backend
+
+### Summary
+Web 蜱种分类的推理输入分辨率（224，`classifier.py` 硬编码）与线上模型训练分辨率（448，`tick_species_clean_448`）不一致——与检测器 800/1024 同类的 train-serve skew，模型切换（2026-09-12）时遗漏
+
+### Details
+- 证据链：`web/backend/app/services/classifier.py:18` `self.input_size=224`（eval_tf = Resize(255)+CenterCrop(224)）；`web/backend/app/config.py` `species_model_path = ../../output/tick_species_clean_448/model/tick_species_best.pth`；`src/train/train_tick_species_all.py:28-29` `OUTPUT_DIR=output/tick_species_clean_448` + `INPUT_SIZE=448`（eval_tf = Resize(510)+CenterCrop(448)）
+- 时间线（git）：classifier.py 最后改动 9160a889（9.9，当时部署 31 类/224 模型）；config.py 在 933a1a61（9.12）切到 clean_448 —— 切换模型时未同步推理侧
+- 影响：ResNet-50 有 AdaptiveAvgPool，224 输入不会报错，只是**静默降精度**——实验报告 test F1 0.742 是 448 口径，线上实际低于此值（接近 224 消融配置 B 的 0.659 量级）
+- 同类前例：检测器 transform 800→1024 已修（见 LRN-20260912-001，detector.py 已恢复 1024/1200）；本次是同一模式在分类器上重演
+- 对照：昆虫粗分类训练与推理两侧都是 224（`train_insect_classifier.py:26` 与 `insect_classifier.py:20`）——无不一致
+
+### Suggested Action
+修 `classifier.py` 的 `input_size` 改为 448（CPU 推理耗时上升约 4×，Docker 指南的 0.3-1s/张 口径需重测）；修复前对外引用线上精度时按 224 口径说明
+
+### Metadata
+- Source: user_request（架构代码核对）
+- Related Files: web/backend/app/services/classifier.py, web/backend/app/config.py, src/train/train_tick_species_all.py, scripts/eval_species_model.py
+- Tags: train-serve-skew, input-resolution, resnet, tick-species, silent-degradation
+- Recurrence-Count: 1
+- First-Seen: 2026-10-13
+- Last-Seen: 2026-10-13
+
+---

@@ -24,12 +24,12 @@ router = APIRouter(prefix="/api/v1", tags=["分析"])
 
 
 @router.post("/analyze")
-async def analyze(request: Request, file: UploadFile = File(...),
+def analyze(request: Request, file: UploadFile = File(...),
                   db: Session = Depends(get_db)):
     # 1. 上传校验：类型与大小，不合法直接拒绝（企业规范：入口处拦截，不污染推理链路）
     if file.content_type not in ALLOWED_TYPES:
         return fail(f"不支持的图片类型: {file.content_type}", 400)
-    data = await file.read()
+    data = file.file.read()
     if len(data) > MAX_FILE_SIZE:
         return fail("图片超过 10MB 限制", 400)
 

@@ -110,10 +110,10 @@ python scripts/sam_auto_label.py --mode auto --input-dirs archive2/dataset/train
 | ONNX 导出 | `src/deploy/export_onnx.py` |
 | 单张图片推理 | `detect.py` |
 | 文件夹批量推理 | `detect_folder.py`、`src/inference/inference_demo.py` |
-| 模型权重 | `output/mask_rcnn_ticks.pth`（训练好的蜱虫模型） |
+| 模型权重（现役） | `output/det_v3/mask_rcnn_ticks_v3.pth`（v3，mAP@0.50=0.866）；`output/mask_rcnn_ticks.pth` 为 v1 旧权重 |
 | COCO 预训练权重 | `checkpoints/mask_rcnn_r50_fpn_1x_coco_20200205-d4b0c5d6.pth`（不是训练好的蜱虫模型） |
 | TickIDNet（蜱种数据） | `TickIDNet/Sample Images/`（3 物种 75 张样例）、`TickIDNet/Data/All_data.csv`（12177 行元数据）、`TickIDNet/Confidence Thresholds/`（分物种置信阈值）、`models/tickidnet_model/`（官方 TF SavedModel） |
-| 蜱种图片数据集（2026-09-03 下载） | `data/tick_species/`（**173 物种 7623 张**，文件夹即类别：GBIF 3 物种包 + GBIF API 12 物种 + HF fine-grained-challenges Ixodidae 4499 张；学名↔中文名对照表 `物种中文名对照表.csv`；全局清单 `fgc_ixodidae_manifest.csv`；原始包 `data/tick_species_raw/`） |
+| 蜱种图片数据集（2026-09-03 下载） | `data/tick_species/`（**173 物种 7866 张**，2026-10 清洗后实测；文件夹即类别：GBIF 3 物种包 + GBIF API 12 物种 + HF fine-grained-challenges Ixodidae 4499 张；学名↔中文名对照表 `物种中文名对照表.csv`；全局清单 `fgc_ixodidae_manifest.csv`；原始包 `data/tick_species_raw/`） |
 | 叮咬伤口数据集（COCO） | `tick-bite-improved.v7-random_split_resize_640.coco-segmentation/`（1032 图 / 1806 多边形标注） |
 | 标注指南 | `docs/annotation_guide.md` |
 | 论文支撑材料 | `论文研究材料/SAM自动标注原理与效果分析.md`（原理、实验结果、原因分析）、`论文研究材料/研究成果与论文素材.md`（成果总览、实验数据、图表清单、章节映射，持续更新） |
@@ -188,7 +188,7 @@ tick-bite-improved.v7-random_split_resize_640.coco-segmentation/
 - `TickIDNet/Sample Images/`：3 物种 × 25 张 = 75 张样例图，文件名编码物种/性别/虫态/饱血（`Genus_species_sex_lifestage_source_alive_feedstage_#.jpg`）
 - `TickIDNet/Data/All_data.csv`（12177 行）：Feed-Stage fed/unfed/unk、Sex f/m/unk、Lifestage a/n/l/unk、Species 5 种（Dermacentor variabilis、Ixodes scapularis、Amblyomma americanum 为主，另有 Amblyomma maculatum 3 行、Dermacentor andersoni 1 行）
 - `TickIDNet/Confidence Thresholds/`：分物种置信阈值脚本与 3 个物种 CSV（TickIDNet 论文方法，毕设 WP2 复现引用）
-- 全量图片已就位（2026-09-03）：`data/tick_species/`（173 物种 7623 张，文件夹即类别）。三个来源：README 的 3 个 GBIF DOI 归档（`data/tick_species_raw/`）→ `download_gbif_images.py`；GBIF API 任意物种（`species_list.txt`）→ `download_gbif_species.py`；HF fine-grained-challenges 的 Ixodidae 组（4499 张，CC0）→ `extract_fgc_ixodidae.py`。注意 static.inaturalist.org 在本机网络 403，图片走 inaturalist-open-data S3 桶；HF lance 分片需校验完整尺寸后再解包
+- 全量图片已就位（2026-09-03，2026-10-13 实测 173 物种 7866 张）：`data/tick_species/`（文件夹即类别；已扣除检测辅助清洗的 189 张零检出噪声图）。三个来源：README 的 3 个 GBIF DOI 归档（`data/tick_species_raw/`）→ `download_gbif_images.py`；GBIF API 任意物种（`species_list.txt`）→ `download_gbif_species.py`；HF fine-grained-challenges 的 Ixodidae 组（4499 张，CC0）→ `extract_fgc_ixodidae.py`。注意 static.inaturalist.org 在本机网络 403，图片走 inaturalist-open-data S3 桶；HF lance 分片需校验完整尺寸后再解包
 - TickIDNet 官方模型（TF SavedModel）：`models/tickidnet_model/model/`（tick_detection 环境无 TensorFlow，需另建 TF 环境或转 ONNX 才能运行）
 
 ## 多类别检测标注
