@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     thresholds_path: str = "../../output/tick_species_clean_448/thresholds.csv"
     cn_table_path: str = "../../data/tick_species/物种中文名对照表.csv"
     species_split_json: str = "../../data/tick_species/split_clean.json"
+    species_input_size: int = 448  # 与 clean_448 训练及阈值保持一致
     detect_tile: int = 2   # 切块补偿的切分数：全图检测未检出时才启用（1=不补偿；2=2x2 小目标放大再试，多花几十秒，精度优先）
     insect_model_path: str = "../../output/insect_classifier/model/insect_best.pth"  # 昆虫粗分类（级联第一级）
     insect_split_json: str = "../../data/insects_split.json"

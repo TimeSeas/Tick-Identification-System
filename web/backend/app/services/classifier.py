@@ -13,9 +13,9 @@ from PIL import Image
 import numpy as np
 class SpeciesClassifier:
     """蜱种分类器"""
-    def __init__(self, model_path: str, split_json: str):
+    def __init__(self, model_path: str, split_json: str, input_size: int = 448):
         self.device =('cuda' if torch.cuda.is_available() else 'cpu')
-        self.input_size=224
+        self.input_size=input_size
         with open(split_json,encoding='utf-8') as f:
             split=json.load(f)
         self.classes=sorted({d["label"] for d in split["train"]})
@@ -24,7 +24,7 @@ class SpeciesClassifier:
          # 预处理变换
         normalize = T.Normalize(mean=[0.485, 0.456, 0.406],
                                 std=[0.229, 0.224, 0.225])
-        resize_size = int(self.input_size * 1.14)  # 255
+        resize_size = int(self.input_size * 1.14)
         self.eval_tf = T.Compose([
             T.Resize(resize_size),
             T.CenterCrop(self.input_size),

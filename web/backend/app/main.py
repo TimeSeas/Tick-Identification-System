@@ -29,7 +29,8 @@ async def lifespan(app: FastAPI):
 
         detector = Detector(settings.detector_path, tile=settings.detect_tile)
         classifier = SpeciesClassifier(
-            settings.species_model_path, settings.species_split_json)
+            settings.species_model_path, settings.species_split_json,
+            input_size=settings.species_input_size)
         insect = InsectClassifier(
             settings.insect_model_path, settings.insect_split_json)
         app.state.pipeline = Pipeline(#在前面创建蜱虫检测器和蜱虫分类器这两个实例后，传入Pipeline构造函数
@@ -42,7 +43,7 @@ async def lifespan(app: FastAPI):
     print("[关闭] 服务停止")
 
 
-app = FastAPI(title="蜱虫识别风险提示系统", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="基于Mask R-CNN的蜱虫识别系统的设计与实现", version="0.1.0", lifespan=lifespan)
 
 # CORS：允许前端开发服务器（Vite 默认 5173）跨域调用
 app.add_middleware(

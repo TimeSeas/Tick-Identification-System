@@ -1,4 +1,4 @@
-# Docker 部署指南（蜱虫识别 Web 系统）
+# 基于Mask R-CNN的蜱虫识别系统的设计与实现 Docker部署指南
 
 > 2026-09-10 · 从零讲清：装什么、写什么、怎么跑、怎么维护、怎么用
 > 本文基于本项目实际文件（`web/docker-compose.yml` 等），与代码同步维护
@@ -132,6 +132,10 @@ curl "http://localhost:8080/api/v1/history?page=1&size=10"
 ## 8. 本项目踩过的三个坑（部署经验记录）
 
 1. **管道吞退出码**：`docker compose build | tail` 在构建失败时仍返回 0——判断构建成败直接看输出内容或镜像列表（`docker images`），不用管道包住构建命令
-2. **卷挂载路径错层**：`../data/tick_species → /app/data` 挂载后，容器内文件在 `/app/data/split_31cls.json`（没有 `tick_species` 这一层）——挂载是"目录内容平铺进去"，不是"带原目录名复制"
+2. **卷挂载路径错层**：`../data/tick_species → /app/data` 挂载后，容器内文件在 `/app/data/split_clean.json`（没有 `tick_species` 这一层）——挂载是"目录内容平铺进去"，不是"带原目录名复制"
 3. **容器内联网下载预训练权重**：torchvision 首次加载 `resnet50(weights=IMAGENET1K_V1)` 会联网下载 100MB，国内网络可能卡死启动——已用 `~/.cache/torch` 只读挂载复用宿主机缓存解决
 4. **标注图中文乱码**：容器是 Linux，不存在宿主机 `C:/Windows/Fonts` 的字体，PIL 回退默认字体（无中文字形）→ 中文变方块——已在后端 Dockerfile 安装 `fonts-noto-cjk`，visualize.py 按"容器路径优先、Windows 路径兜底"顺序查找字体。**通用教训：任何依赖宿主机资源的路径（字体/模型/数据）进容器都要显式处理**
+
+## 2026-10-15 配置校准
+
+Compose与本地默认均使用v3检测和28类448蜱种分类，新增 `SPECIES_INPUT_SIZE=448`。昆虫粗分类使用 `/app/models/insect_classifier/model/insect_best.pth`，划分文件由 `../data/insects_split.json` 单文件只读挂载到 `/app/insects_split.json`。完整变量表与测试边界见 [实践报告与模型核验说明](../docs/practice_report_validation.md)。本轮未执行Docker镜像构建与容器端到端测试。

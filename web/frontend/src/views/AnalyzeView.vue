@@ -1,160 +1,365 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { analyzeImage } from '../api/client'
 import type { AnalyzeResult } from '../types'
-
-// ===== 状态 =====
-const loading = ref(false)                          // 请求中：按钮转圈
-const file = ref<File | null>(null)                 // 用户选的原图文件
-const result = ref<AnalyzeResult | null>(null)      // 分析结果（含标注图 base64）
-const viewMode = ref<'original' | 'annotated'>('original')  // 预览切换：原图 / 标注图
-
-// 原图预览 URL：File 对象不能直接给 <img>，用 createObjectURL 生成浏览器本地地址
-// （这个地址只在当前页面有效，不需要上传就有预览——所以"选了图立刻能看到"）
+const picker = ref<HTMLInputElement | null>(null)
+const file = ref<File | null>(null)
 const originalUrl = ref('')
-function onFileChange(uploadFile: { raw: File }) {
-  file.value = uploadFile.raw
-  result.value = null                    // 换了新图，清掉旧结果
-  viewMode.value = 'original'            // 回到原图视图
-  if (originalUrl.value) URL.revokeObjectURL(originalUrl.value)  // 释放旧地址，防内存泄漏
-  originalUrl.value = URL.createObjectURL(uploadFile.raw)
+const loading = ref(false)
+const dragging = ref(false)
+const error = ref('')
+const result = ref<AnalyzeResult | null>(null)
+const viewMode = ref<'original' | 'annotated'>('original')
+const previewSrc = computed(() => viewMode.value === 'annotated' && result.value ? result.value.result_image_base64 : originalUrl.value)
+const count = computed(() => result.value?.detections.length ?? 0)
+const confirmed = computed(() => result.value?.detections.filter(d => d.status === 'confirmed').length ?? 0)
+const summary = computed(() => !result.value ? '等待图像分析' : count.value ? `检出 ${count.value} 个蜱虫候选实例` : result.value.insect?.slug === 'tick' ? '疑似蜱虫，尚未定位' : '本次未检出蜱虫')
+function choose(candidate?: File) {
+  if (!candidate || loading.value) return
+  if (!['image/jpeg', 'image/png', 'image/bmp', 'image/webp'].includes(candidate.type)) { ElMessage.warning('请选择 JPG、PNG、BMP 或 WebP 图片'); return }
+  if (candidate.size > 10 * 1024 * 1024) { ElMessage.warning('图片大小不能超过 10 MB'); return }
+  if (originalUrl.value) URL.revokeObjectURL(originalUrl.value)
+  originalUrl.value = URL.createObjectURL(candidate)
+  file.value = candidate; result.value = null; error.value = ''; viewMode.value = 'original'
 }
-
-async function doAnalyze() {
-  if (!file.value) {
-    ElMessage.warning('请先选择图片')
-    return
-  }
-  loading.value = true
-  try {
-    result.value = await analyzeImage(file.value)
-    viewMode.value = 'annotated'         // 出结果后自动切到标注图
-  } catch {
-    // 错误提示已由 api 层统一弹出
-  } finally {
-    loading.value = false
-  }
+function onChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  choose(input.files?.[0]); input.value = ''
 }
-
-// 当前预览的图：原图走本地 URL，标注图走后端返回的 base64
-//const previewSrc = computed(...)
-//定义一个计算属性​ previewSrc。计算属性的值会根据依赖的响应式数据自动变化。
-//viewMode.value === 'annotated'判断是不是标注模式，为真的话，运行&&后面代码 
-//result.value存在，取标注图，不存在取原图
-const previewSrc = computed(() =>
-  viewMode.value === 'annotated' && result.value
-    ? result.value.result_image_base64
-    : originalUrl.value,
-)
-
-// 下载文件名：原文件名前加"标注结果_"前缀
-const downloadName = computed(() => {
-  const base = file.value?.name ?? 'tick'
-  return `标注结果_${base}`
-})
-
-// 检测列表的行数据：给每个结果补一个展示用的序号与 bbox 文本
-const detectionRows = computed(() =>
-  (result.value?.detections ?? []).map((d, i) => ({
-    index: i + 1,
-    ...d,
-    bboxText: `[${d.bbox.join(', ')}]`,
-  })),
-)
-//判断有没有出结果
-const hasResult = computed(() => result.value !== null)
-const hasDetections = computed(() => (result.value?.detections.length ?? 0) > 0)
+function drop(event: DragEvent) { dragging.value = false; choose(event.dataTransfer?.files[0]) }
+async function analyze() {
+  if (!file.value || loading.value) return
+  loading.value = true; error.value = ''
+  try { result.value = await analyzeImage(file.value); viewMode.value = 'annotated' }
+  catch { error.value = '本次分析未完成，请稍后重试。较复杂的图片可能需要更长时间。' }
+  finally { loading.value = false }
+}
+onUnmounted(() => { if (originalUrl.value) URL.revokeObjectURL(originalUrl.value) })
 </script>
-
 <template>
-  <div class="page">
-    <!-- 操作区 -->
-    <div class="toolbar">
-      <el-upload :auto-upload="false" :show-file-list="false"
-                 accept="image/*" :on-change="onFileChange">
-        <el-button>选择图片</el-button>
-      </el-upload>
-      <el-button type="primary" :loading="loading" @click="doAnalyze">开始分析</el-button>
-
-      <!-- 预览切换：有结果后才显示标注图选项 -->
-      <el-radio-group v-if="hasResult" v-model="viewMode" style="margin-left: 12px">
-        <el-radio-button value="original">原图</el-radio-button>
-        <el-radio-button value="annotated">标注图</el-radio-button>
-      </el-radio-group>
-
-      <!-- 下载标注图：base64 数据可直接作为href下载链接 -->
-      <el-button v-if="hasResult" style="margin-left: 12px"
-                 tag="a" :href="result!.result_image_base64"
-                 :download="downloadName" type="success" plain>
-        下载标注图
-      </el-button>
+  <section class="page-intro">
+    <div>
+      <p class="eyebrow">
+        IMAGE IDENTIFICATION / 图像识别
+      </p>
+      <h1>
+        从一张照片，
+        <br />
+        认识眼前的蜱虫
+        <span>
+          。
+        </span>
+      </h1>
+      <p class="intro-copy">
+        上传清晰照片，查看蜱虫数量、逐只位置与蜱种结果。
+      </p>
     </div>
-
-    <!-- 图片预览区 -->
-    <div class="preview">
-      <img v-if="previewSrc" :src="previewSrc" alt="预览图" />
-      <el-empty v-else description="选择图片开始分析" />
-    </div>
-
-    <!-- 结果区 -->
-    <template v-if="hasResult">
-      <!-- 风险建议 -->
-      <el-alert :title="result!.risk_advice" type="warning" :closable="false" style="margin-top: 16px" />
-
-      <!-- 昆虫粗分类结果（非蜱虫分支时突出显示） -->
-      <el-alert v-if="result!.insect && !hasDetections" :closable="false"
-                :type="result!.insect.slug === 'tick' ? 'warning' : 'success'"
-                :title="`识别为${result!.insect.cn}（置信度 ${result!.insect.confidence}%）`"
-                style="margin-top: 16px" />
-
-      <!-- 识别结果列表 -->
-      <div style="margin-top: 16px">
-        <h4>识别结果</h4>
-        <el-table v-if="hasDetections" :data="detectionRows" border stripe>
-          <el-table-column prop="index" label="#" width="50" />
-          <el-table-column prop="species_cn" label="蜱种（中文名）" min-width="140" />
-          <el-table-column prop="species_slug" label="学名" min-width="160" />
-          <el-table-column label="检测置信度" width="110">
-            <template #default="{ row }">{{ (row.score * 100).toFixed(1) }}%</template>
-          </el-table-column>
-          <el-table-column label="分类置信度" width="110">
-            <template #default="{ row }">{{ row.confidence.toFixed(1) }}%</template>
-          </el-table-column>
-          <el-table-column label="状态" width="100">
-            <template #default="{ row }">
-              <el-tag :type="row.status === 'confirmed' ? 'success' : 'warning'">
-                {{ row.status === 'confirmed' ? '已确认' : '待确认' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="bboxText" label="位置 (x1,y1,x2,y2)" min-width="180" />
-        </el-table>
-        <el-empty v-else description="未检测到蜱虫" :image-size="60" />
+    <div class="intro-index">
+      <span>
+        01 — 03
+      </span>
+      <p>
+        观察 · 定位 · 识别
+      </p>
+      <div class="index-rule">
       </div>
-    </template>
+      <small>
+        保留不确定性，让结果有据可查
+      </small>
+    </div>
+  </section>
+  <div class="analysis-layout">
+    <section class="panel image-panel" aria-labelledby="image-heading">
+      <div class="panel-heading">
+        <h2 id="image-heading">
+          <span class="step">
+            01
+          </span>
+          图像工作区
+        </h2>
+        <span class="muted">
+          {{ file ? '已载入图像' : '等待上传' }}
+        </span>
+      </div>
+      <input ref="picker" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/bmp,image/webp" aria-label="上传待识别图片" :disabled="loading" @change="onChange" />
+      <div v-if="!file" class="upload-zone" :class="{ dragging }" @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false" @drop.prevent="drop">
+        <div class="focus-frame" aria-hidden="true">
+          <svg viewBox="0 0 80 80" fill="none">
+            <path d="M25 10H10v15M55 10h15v15M10 55v15h15M70 55v15H55" stroke="currentColor" stroke-width="2"/>
+            <ellipse cx="40" cy="41" rx="10" ry="15" stroke="currentColor" stroke-width="2"/>
+            <path d="M34 25l-7-9m19 9 7-9M30 33l-12-5m32 5 12-5M29 43H15m36 0h14M31 53l-12 9m30-9 12 9" stroke="currentColor" stroke-width="2"/>
+          </svg>
+        </div>
+        <h3>
+          将照片拖到这里
+        </h3>
+        <p>
+          或从设备中选择一张图片
+        </p>
+        <button class="button primary" @click="picker?.click()">
+          选择图片
+          <span aria-hidden="true">
+            ↗
+          </span>
+        </button>
+        <small>
+          JPG / PNG / BMP / WebP · 最大 10 MB
+        </small>
+      </div>
+      <div v-else class="image-stage">
+        <img :src="previewSrc" alt="当前图像预览" />
+        <div v-if="loading" class="image-loading">
+          <span class="spinner">
+          </span>
+          <strong>
+            正在识别图像
+          </strong>
+          <small>
+            正在定位目标并逐只分析，请稍候
+          </small>
+        </div>
+      </div>
+      <div v-if="file" class="image-toolbar">
+        <div class="file-name">
+          <span class="file-dot">
+          </span>
+          <span>
+            {{ file.name }}
+          </span>
+          <small>
+            {{ (file.size / 1024 / 1024).toFixed(2) }} MB
+          </small>
+        </div>
+        <div class="toolbar-actions">
+          <button class="button subtle" :disabled="loading" @click="picker?.click()">
+            更换图片
+          </button>
+          <div v-if="result" class="segmented">
+            <button :class="{ selected: viewMode === 'original' }" @click="viewMode = 'original'">
+              原图
+            </button>
+            <button :class="{ selected: viewMode === 'annotated' }" @click="viewMode = 'annotated'">
+              标注图
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="workspace-footer">
+        <span>
+          <i class="status-dot" :class="{ busy: loading }">
+          </i>
+          {{ loading ? '正在分析，请勿重复提交' : file ? '照片已就绪' : '清晰、对焦准确的照片有助于识别' }}
+        </span>
+        <button class="button primary" :disabled="!file || loading" @click="analyze">
+          {{ loading ? '正在分析…' : result ? '重新分析' : '开始识别' }}
+          <span v-if="!loading" aria-hidden="true">
+            →
+          </span>
+        </button>
+      </div>
+      <p v-if="error" class="inline-error" role="alert">
+        {{ error }}
+      </p>
+    </section>
+    <aside class="panel result-panel" aria-labelledby="result-heading" aria-live="polite">
+      <div class="panel-heading">
+        <h2 id="result-heading">
+          <span class="step">
+            02
+          </span>
+          识别概览
+        </h2>
+        <span class="tiny-label">
+          RESULT
+        </span>
+      </div>
+      <div class="result-overview">
+        <p class="eyebrow">
+          {{ result ? '本次识别' : '蜱虫候选实例' }}
+        </p>
+        <div class="count-number">
+          {{ result ? String(count).padStart(2, '0') : '—' }}
+          <span>
+            只
+          </span>
+        </div>
+        <h3>
+          {{ summary }}
+        </h3>
+        <p>
+          {{ result ? (count ? `${confirmed} 只蜱种已确认，${count - confirmed} 只待确认` : '没有定位结果不代表照片中一定不存在蜱虫') : '分析后将展示数量、位置和逐只识别结果。' }}
+        </p>
+      </div>
+      <div v-if="!result" class="result-checklist">
+        <div>
+          <span>
+            01
+          </span>
+          <p>
+            <strong>
+              定位目标
+            </strong>
+            <small>
+              在图片中标出每个候选实例
+            </small>
+          </p>
+        </div>
+        <div>
+          <span>
+            02
+          </span>
+          <p>
+            <strong>
+              辨识蜱种
+            </strong>
+            <small>
+              分别展示中文名、学名与置信度
+            </small>
+          </p>
+        </div>
+        <div>
+          <span>
+            03
+          </span>
+          <p>
+            <strong>
+              保留待确认结果
+            </strong>
+            <small>
+              证据不足时提示补充清晰照片
+            </small>
+          </p>
+        </div>
+      </div>
+      <div v-else class="result-meta">
+        <div>
+          <span>
+            已确认蜱种
+          </span>
+          <strong>
+            {{ confirmed }}
+          </strong>
+        </div>
+        <div>
+          <span>
+            待人工确认
+          </span>
+          <strong>
+            {{ count - confirmed }}
+          </strong>
+        </div>
+        <div v-if="result.insect && !count">
+          <span>
+            粗分类候选
+          </span>
+          <strong>
+            {{ result.insect.cn }}
+          </strong>
+        </div>
+        <div v-if="result.insect && !count">
+          <span>
+            分类置信度
+          </span>
+          <strong>
+            {{ result.insect.confidence.toFixed(1) }}%
+          </strong>
+        </div>
+        <a class="button outline full-width" :href="result.result_image_base64" :download="`标注结果_${file?.name ?? 'tick.jpg'}`">
+          下载标注结果 ↓
+        </a>
+        <p class="request-id">
+          请求编号 {{ result.request_id }}
+        </p>
+      </div>
+      <div class="soft-note">
+        <span>
+          i
+        </span>
+        <p>
+          识别结果仅供辅助鉴定。低置信度结果标记为待确认，建议补拍或请专业人员复核。
+        </p>
+      </div>
+    </aside>
   </div>
+  <section v-if="result && count" class="panel instances-panel">
+    <div class="panel-heading">
+      <h2>
+        <span class="step">
+          03
+        </span>
+        逐只识别结果
+      </h2>
+      <span class="muted">
+        共 {{ count }} 个实例 · 与标注框对应
+      </span>
+    </div>
+    <div class="instance-grid">
+      <article v-for="(d, i) in result.detections" :key="i" class="instance-card">
+        <div class="instance-top">
+          <span class="specimen-index">
+            #{{ String(i + 1).padStart(2, '0') }}
+          </span>
+          <span class="badge" :class="d.status">
+            {{ d.status === 'confirmed' ? '已确认' : '待确认' }}
+          </span>
+        </div>
+        <h3>
+          {{ d.species_cn }}
+        </h3>
+        <p class="latin">
+          {{ d.species_slug === 'uncertain' ? 'Species undetermined' : d.species_slug.replaceAll('_', ' ') }}
+        </p>
+        <div class="confidence-row">
+          <span>
+            蜱种分类置信度
+          </span>
+          <strong>
+            {{ d.confidence.toFixed(1) }}%
+          </strong>
+        </div>
+        <div class="confidence-track">
+          <i :style="{ width: `${d.confidence}%` }">
+          </i>
+        </div>
+        <div class="instance-details">
+          <span>
+            检测置信度
+            <strong>
+              {{ (d.score * 100).toFixed(1) }}%
+            </strong>
+          </span>
+          <span>
+            位置
+            <code>
+              {{ d.bbox.map(v => Math.round(v)).join(', ') }}
+            </code>
+          </span>
+        </div>
+      </article>
+    </div>
+  </section>
+  <section v-else-if="!result" class="photo-tips">
+    <span class="tiny-label">
+      拍摄建议
+    </span>
+    <p>
+      <strong>
+        靠近一点
+      </strong>
+      让目标尽量占据画面主体
+    </p>
+    <p>
+      <strong>
+        对焦清晰
+      </strong>
+      保留体表纹理与形态细节
+    </p>
+    <p>
+      <strong>
+        完整入镜
+      </strong>
+      避免遮挡与过强的反光
+    </p>
+  </section>
 </template>
-
-<style scoped>
-.page {
-  max-width: 900px;
-  margin: 0 auto;
-}
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.preview {
-  margin-top: 16px;
-  text-align: center;
-}
-.preview img {
-  max-width: 100%;
-  max-height: 520px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-}
-</style>

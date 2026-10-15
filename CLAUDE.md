@@ -12,7 +12,7 @@
 
 ## 项目概述
 
-蜱虫与叮咬伤口智能识别系统（本科毕业设计）- 上传照片，系统回答：有没有蜱虫（或是什么昆虫）、什么蜱种、叮咬伤口在哪里、风险建议是什么。三模型架构：M1 多类别昆虫检测（在单类 mAP@0.50=0.842 基础上扩展，降误检）、M2 蜱种精细分类（TickIDNet 3 物种）、M3 叮咬伤口分割（tick-bite 数据集）。成果形态：Web 应用为主 + 桌面 GUI / 边缘部署可选。
+基于Mask R-CNN的蜱虫识别系统的设计与实现（本科毕业设计）— 上传照片，系统回答：**图上有几只蜱虫、每一只在哪、分别是什么蜱种**；非蜱虫照片给出疑似昆虫类别兜底。核心为三模型级联：M1 蜱虫检测（Mask R-CNN，现役 v3 mAP@0.50=0.866）、M2 蜱种细粒度分类（28 类部署 + 分物种置信阈值"存疑"机制）、昆虫粗分类兜底（28 类 acc 94.25%）。**对外统一口径（2026-10-14 定位收敛）**：聚焦识别——数量 + 逐只定位 + 蜱种；部件级实例分割（盾板/足等）为深化方向；M3 叮咬伤口分割为规划中的扩展模块（tick-bite 数据集就绪）。成果形态：Web 应用为主 + 桌面 GUI / 边缘部署可选。
 
 路线图（毕设 WP，详见 `毕业设计/毕业设计系统规划.md`）：
 - WP1-2：蜱种数据收集（TickIDNet 75 样例先导 + iNaturalist 扩展）与 3 类分类模型
@@ -121,7 +121,7 @@ python scripts/sam_auto_label.py --mode auto --input-dirs archive2/dataset/train
 | 毕业设计规划 | `毕业设计/毕业设计系统规划.md`（选题、架构、8 个 WP、论文结构、进度对照） |
 | 命令速查 | `开发进程/命令.md`（环境/训练/推理/SAM/数据/前后端/Docker/数据库/端口排查，全部日常命令） |
 | 简历素材 | `开发进程/简历项目经历素材.md`（项目描述、量化成果、简历条目模板、STAR 故事、面试题预答） |
-| 求职准备 | `开发进程/求职准备计划.md`（无实习破局、技术栈三档处理法、三层追问、两周冲刺日程） |
+| 求职准备 | `开发进程/求职准备计划.md`（无实习破局、技术栈三档处理法、三层追问、两周冲刺日程）、`开发进程/面试话术与追问预答.md`（三版项目话术、逐句追问预答、数据来源口径、数字口径表、红线） |
 | 自动标注AI模型 | `models/yolov8m.pt`、`models/yolov8m.onnx`、`models/classes.txt`（28类）、`models/yolov8_custom.yaml` |
 | SAM 权重与脚本 | `models/sam_vit_b_01ec64.pth`（vit_b，375MB）、`scripts/sam_auto_label.py`（fill/auto 两模式） |
 | 数据工具脚本 | `scripts/verify_coco_dataset.py`、`scripts/convert_folder_to_coco.py`、`scripts/download_gbif_images.py`（GBIF 归档包图片下载）、`scripts/download_gbif_species.py`（GBIF API 按物种名下载，任意蜱种）、`scripts/extract_fgc_ixodidae.py`（HF lance 解包）——均断点续跑 |
@@ -154,7 +154,10 @@ python scripts/sam_auto_label.py --mode auto --input-dirs archive2/dataset/train
 - 单类别模式：背景 + 蜱虫（2类）
 - 多类别模式：规划中，代码未实现（见「多类别支持」）
 - 现役模型：`output/det_v3/mask_rcnn_ticks_v3.pth`（1024 分辨率 + 579 张小目标补标，mAP@0.50=0.866，@1024 公平评估）
-- ⚠️ 训练/推理分辨率坑：transform 的 min_size/max_size **不随 state_dict 保存**，重建模型默认回到 800/1333——评估与 Web 推理都必须在 load_state_dict 后手动 `model.transform.min_size=(1024,)`、`max_size=1200`（detector.py 已修，`src/eval/evaluate_model.py` 待修）
+- ⚠️ 训练/推理分辨率坑：transform 的 min_size/max_size **不随 state_dict 保存**，重建模型默认回到 800/1333——评估与 Web 推理都必须在 load_state_dict 后手动 `model.transform.min_size=(1024,)`、`max_size=1200`（detector.py 与 `src/eval/evaluate_model.py` 均已修复，2026-10-15）
+- 蜱种推理配置：`SPECIES_INPUT_SIZE=448`，由 main.py 传入分类器；切换权重时须同步输入尺度、划分文件和阈值表。Docker已与本地统一为v3检测+28类448蜱种分类，并挂载 `data/insects_split.json` 供粗分类使用。
+- 正式题名（2026-10-15 用户指定）：**基于Mask R-CNN的蜱虫识别系统的设计与实现**。本轮用户明确授权 Codex 全程完成前端设计、截图，以及修复 Web 分类输入、Docker模型配置、检测评估分辨率三处具体问题；不扩大为其他功能代码授权。
+- 本轮重测及前端操作说明见 `docs/practice_report_validation.md`；报告源材料在 `毕业设计/实践报告工作区/`（本地目录，不随代码推送）。
 - Web 检测器 `detector.py`：`detect(img_rgb, tile)` 支持全图（tile=1）/切块（tile=2）按需切换；全图与切块路径均带 IoU=0.3 重叠去重（大目标重复检出框实测 IoU 0.476）
 
 ## 数据结构
@@ -162,7 +165,7 @@ python scripts/sam_auto_label.py --mode auto --input-dirs archive2/dataset/train
 ### 蜱虫数据集（COCO格式）
 ```
 ticks image detection.v5i.coco/
-├── train/_annotations.coco.json + images（1136 张）
+├── train/_annotations.coco.json + images（1715 张，含579张扩充）
 ├── valid/_annotations.coco.json + images（332 张）
 └── test/_annotations.coco.json + images（134 张）
 ```

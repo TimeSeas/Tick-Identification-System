@@ -1,4 +1,4 @@
-# Web 系统：蜱虫识别与叮咬风险提示
+# 基于Mask R-CNN的蜱虫识别系统的设计与实现 Web 应用
 
 前后端分离 + 容器化部署。技术栈：FastAPI + SQLAlchemy（后端）/ Vue3 + TypeScript + Element Plus（前端）/ Docker Compose（部署）。
 
@@ -31,7 +31,7 @@ docker compose up --build
 ## 设计说明（论文/答辩素材）
 
 - **统一响应包** `{code, msg, data}`（code=200 成功），前端 axios 拦截器统一解包与报错
-- **模型常驻内存**：FastAPI lifespan 加载一次，推理毫秒级
+- **模型常驻内存**：FastAPI lifespan 加载一次，避免每次请求重复加载；耗时受设备与分支影响
 - **分物种置信阈值**：Web 决策逻辑与论文阈值方法（Villon et al. 2020）同源——低置信度输出"待确认"而非硬判
 - **已知取舍**：历史记录 result_json 内含 base64 标注图，演示规模下可接受；生产环境应分离文件存储（对象存储 + 数据库只存元数据）——论文可写为"工程优化方向"
 
@@ -44,3 +44,9 @@ web/
 ├── docker-compose.yml
 └── README.md
 ```
+
+## 当前界面与模型配置
+
+识别工作台支持拖放、原图与标注图切换、数量概览、逐只结果及下载；档案页支持分页和详情回看。页面主线为识别，不展示旧版就医建议。
+
+`SPECIES_INPUT_SIZE` 默认448；本地与Docker模型已统一，完整环境变量及本轮测试见 [实践报告与模型核验说明](../docs/practice_report_validation.md)。性能数字须区分整图、切块及完整请求，不以离线组件吞吐代表端到端时延。

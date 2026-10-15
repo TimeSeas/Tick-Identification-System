@@ -1,41 +1,38 @@
-<script setup lang="ts">
-// 根组件：全局布局 = 顶部导航 + 路由出口
-</script>
-
 <template>
-  <el-container>
-    <el-header class="header">
-      <h2>🕷 蜱虫识别与叮咬风险提示系统</h2>
-      <nav>
-        <router-link to="/">分析</router-link>
-        <router-link to="/history">历史</router-link>
+  <div class="app-shell">
+    <header class="site-header">
+      <router-link to="/" class="brand" aria-label="系统首页">
+        <span class="brand-icon" aria-hidden="true">
+          ✳
+        </span>
+        <span>
+          <strong>
+            基于Mask R-CNN的蜱虫识别系统的设计与实现
+          </strong>
+          <small>
+            GRADUATION PROJECT · TICK IDENTIFICATION
+          </small>
+        </span>
+      </router-link>
+      <nav class="main-nav" aria-label="主导航">
+        <router-link to="/" exact-active-class="active">
+          图像识别
+        </router-link>
+        <router-link to="/history" active-class="active">
+          识别档案
+        </router-link>
       </nav>
-    </el-header>
-    <el-main>
+    </header>
+    <main class="main-content">
       <router-view />
-    </el-main>
-  </el-container>
+    </main>
+    <footer class="site-footer">
+      <span>
+        蜱识 · 让每一次观察更清晰
+      </span>
+      <span>
+        数量统计 / 逐只定位 / 蜱种识别
+      </span>
+    </footer>
+  </div>
 </template>
-
-<style scoped>
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid #dcdfe6;
-}
-.header nav {
-  display: flex;
-  gap: 20px;
-}
-.header a {
-  color: #409eff;
-  text-decoration: none;
-  font-size: 15px;
-}
-/* 当前路由高亮：router-link 激活时自带 router-link-active 类 */
-.header a.router-link-active {
-  color: #1f2d3d;
-  font-weight: bold;
-}
-</style>

@@ -13,7 +13,7 @@ import json
 from tqdm import tqdm
 
 # Configuration
-MODEL_PATH = "output/mask_rcnn_ticks.pth"
+MODEL_PATH = "output/det_v3/mask_rcnn_ticks_v3.pth"
 TEST_ANN = "ticks image detection.v5i.coco/test/_annotations.coco.json"
 TEST_IMG = "ticks image detection.v5i.coco/test"
 CONFIDENCE_THRESHOLD = 0.05  # Low threshold to get all detections for evaluation
@@ -32,7 +32,10 @@ def load_model(model_path, device):
     """Load trained model weights."""
     print(f"Loading model from {model_path}...")
     model = get_model(num_classes=2)
-    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
+    # state_dict 不保存 transform，恢复 v3 训练时的输入尺度。
+    model.transform.min_size = (1024,)
+    model.transform.max_size = 1200
     model.to(device)
     model.eval()
     print("Model loaded successfully!")
