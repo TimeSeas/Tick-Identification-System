@@ -8,7 +8,7 @@ import type { AnalyzeResult, ApiResponse, HistoryDetail, HistoryListData } from 
 
 const http = axios.create({
   baseURL: '/api/v1',        // 开发环境由 Vite 代理转发到后端 8000
-  timeout: 30000,            // 推理+可视化需要时间，超时给 30s
+  timeout: 30000,
 })
 
 // 响应拦截器：解包统一响应 {code, msg, data}
@@ -22,8 +22,11 @@ http.interceptors.response.use(
     return body.data as never                  // 直接返回 data，调用方拿到干净数据
   },
   (error) => {
-    ElMessage.error(error.response?.data?.msg || '网络错误，请检查后端是否启动')
-    return Promise.reject(error)
+    const message = error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT'
+      ? '分析等待时间较长，请先查看识别档案确认是否完成，再尝试重试。'
+      : error.response?.data?.msg || '无法连接识别服务，请检查网络后重试。'
+    ElMessage.error(message)
+    return Promise.reject(new Error(message))
   },
 )
 
@@ -32,7 +35,7 @@ export async function analyzeImage(file: File): Promise<AnalyzeResult> {
   const form = new FormData()
   form.append('file', file)                     // 字段名与后端 UploadFile 参数一致
   // 注意：FormData 上传不能手动设 Content-Type，axios 会自动带 boundary
-  const resp = await http.post('/analyze', form)
+  const resp = await http.post('/analyze', form, { timeout: 120000 })
   return resp as unknown as AnalyzeResult
 }
 

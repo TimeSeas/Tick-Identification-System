@@ -34,6 +34,12 @@ export interface HistoryDetail extends AnalyzeResult {
 }
 
 /** 单个蜱虫检测结果 */
+export interface ClassificationCandidate {
+  slug: string
+  cn: string
+  confidence: number
+}
+
 export interface Detection {
   bbox: [number, number, number, number]  // [x1, y1, x2, y2]
   score: number                            // M1 检测置信度
@@ -41,6 +47,11 @@ export interface Detection {
   species_cn: string                       // 中文名
   confidence: number                       // M2 分类置信度（0-100）
   status: 'confirmed' | 'uncertain'        // 分物种阈值决策结果
+  candidate_slug?: string
+  candidate_cn?: string
+  threshold?: number
+  top_candidates?: ClassificationCandidate[]
+  decision_reason?: string
 }
 
 /** 昆虫粗分类结果（级联第一级） */
@@ -48,6 +59,9 @@ export interface InsectInfo {
   slug: string
   cn: string
   confidence: number
+  status?: 'confirmed' | 'uncertain'
+  threshold?: number
+  top_candidates?: ClassificationCandidate[]
 }
 
 /** POST /api/v1/analyze 返回的 data 字段 */

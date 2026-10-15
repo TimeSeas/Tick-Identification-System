@@ -138,4 +138,6 @@ curl "http://localhost:8080/api/v1/history?page=1&size=10"
 
 ## 2026-10-15 配置校准
 
+本优化分支新增只读挂载 `../configs:/app/config:ro`，通过 `INFERENCE_PROFILE_PATH=/app/config/inference_optimization.json` 读取双视图、上下文与校准阈值。本地默认读取 `../../configs/inference_optimization.json`。更新配置后需重启后端，输入尺寸或类别与模型不匹配会启动失败。分类与检测模型构建使用 `weights=None` / `weights_backbone=None` 后加载完整本地权重，不再依赖下载初始化权重。模型测试与系统级联测试的区别见 [优化评估](../docs/optimization_results.md)。
+
 Compose与本地默认均使用v3检测和28类448蜱种分类，新增 `SPECIES_INPUT_SIZE=448`。昆虫粗分类使用 `/app/models/insect_classifier/model/insect_best.pth`，划分文件由 `../data/insects_split.json` 单文件只读挂载到 `/app/insects_split.json`。完整变量表与测试边界见 [实践报告与模型核验说明](../docs/practice_report_validation.md)。本轮未执行Docker镜像构建与容器端到端测试。

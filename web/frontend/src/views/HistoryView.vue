@@ -179,7 +179,7 @@ onMounted(loadList)
               #{{ i + 1 }}
             </span>
             <strong>
-              {{ d.species_cn }}
+              {{ d.status === 'uncertain' && d.candidate_cn ? `疑似${d.candidate_cn}` : d.species_cn }}
             </strong>
             <span>
               {{ d.confidence.toFixed(1) }}%
@@ -187,6 +187,8 @@ onMounted(loadList)
             <span class="badge" :class="d.status">
               {{ d.status === 'confirmed' ? '已确认' : '待确认' }}
             </span>
+            <small v-if="d.threshold !== undefined">确认参考阈值 {{ d.threshold.toFixed(1) }}%</small>
+            <small v-if="d.status === 'uncertain' && d.top_candidates?.length">候选参考：{{ d.top_candidates.map(c => `${c.cn} ${c.confidence.toFixed(1)}%`).join('；') }}</small>
           </div>
           <p v-if="!detail.detections.length">
             未检出蜱虫

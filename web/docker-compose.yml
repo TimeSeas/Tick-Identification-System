@@ -12,6 +12,7 @@ services:
       - THRESHOLDS_PATH=/app/models/tick_species_clean_448/thresholds.csv
       - SPECIES_SPLIT_JSON=/app/data/split_clean.json
       - SPECIES_INPUT_SIZE=448
+      - INFERENCE_PROFILE_PATH=/app/config/inference_optimization.json
       - INSECT_MODEL_PATH=/app/models/insect_classifier/model/insect_best.pth
       - INSECT_SPLIT_JSON=/app/insects_split.json
       - CN_TABLE_PATH=/app/data/物种中文名对照表.csv
@@ -19,6 +20,7 @@ services:
       - ../output:/app/models:ro          # 模型权重与阈值表（只读挂载）
       - ../data/tick_species:/app/data:ro # 划分文件与中文对照表（只读挂载）
       - ../data/insects_split.json:/app/insects_split.json:ro
+      - ../configs:/app/config:ro
       - dbdata:/app/db                    # SQLite 数据持久化
       # torch 预训练权重缓存（宿主已下载，挂载后容器启动不再联网下载 100MB）
       - ~/.cache/torch:/root/.cache/torch:ro

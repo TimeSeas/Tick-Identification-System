@@ -32,7 +32,7 @@ async function analyze() {
   if (!file.value || loading.value) return
   loading.value = true; error.value = ''
   try { result.value = await analyzeImage(file.value); viewMode.value = 'annotated' }
-  catch { error.value = '本次分析未完成，请稍后重试。较复杂的图片可能需要更长时间。' }
+  catch (cause) { error.value = cause instanceof Error ? cause.message : '本次分析未完成，请稍后重试。' }
   finally { loading.value = false }
 }
 onUnmounted(() => { if (originalUrl.value) URL.revokeObjectURL(originalUrl.value) })
@@ -116,7 +116,7 @@ onUnmounted(() => { if (originalUrl.value) URL.revokeObjectURL(originalUrl.value
             正在识别图像
           </strong>
           <small>
-            正在定位目标并逐只分析，请稍候
+            正在定位目标并逐只分析，复杂图片可能需要约两分钟
           </small>
         </div>
       </div>
@@ -265,6 +265,8 @@ onUnmounted(() => { if (originalUrl.value) URL.revokeObjectURL(originalUrl.value
             {{ result.insect.confidence.toFixed(1) }}%
           </strong>
         </div>
+        <p v-if="result.insect?.status === 'uncertain' && !count" class="candidate-note">粗分类尚待确认，请补拍清晰照片。{{ result.insect.threshold !== undefined ? `确认参考阈值 ${result.insect.threshold.toFixed(1)}%` : '' }}</p>
+        <p v-if="result.insect?.top_candidates?.length && !count" class="candidate-note">候选参考：{{ result.insect.top_candidates.map(c => `${c.cn} ${c.confidence.toFixed(1)}%`).join('；') }}</p>
         <a class="button outline full-width" :href="result.result_image_base64" :download="`标注结果_${file?.name ?? 'tick.jpg'}`">
           下载标注结果 ↓
         </a>
@@ -305,10 +307,10 @@ onUnmounted(() => { if (originalUrl.value) URL.revokeObjectURL(originalUrl.value
           </span>
         </div>
         <h3>
-          {{ d.species_cn }}
+          {{ d.status === 'uncertain' && d.candidate_cn ? `疑似${d.candidate_cn}` : d.species_cn }}
         </h3>
         <p class="latin">
-          {{ d.species_slug === 'uncertain' ? 'Species undetermined' : d.species_slug.replaceAll('_', ' ') }}
+          {{ (d.candidate_slug || (d.species_slug === 'uncertain' ? 'Species undetermined' : d.species_slug)).replaceAll('_', ' ') }}
         </p>
         <div class="confidence-row">
           <span>
@@ -323,6 +325,10 @@ onUnmounted(() => { if (originalUrl.value) URL.revokeObjectURL(originalUrl.value
           </i>
         </div>
         <div class="instance-details">
+          <span v-if="d.threshold !== undefined">
+            确认参考阈值
+            <strong>{{ d.threshold.toFixed(1) }}%</strong>
+          </span>
           <span>
             检测置信度
             <strong>
@@ -335,6 +341,10 @@ onUnmounted(() => { if (originalUrl.value) URL.revokeObjectURL(originalUrl.value
               {{ d.bbox.map(v => Math.round(v)).join(', ') }}
             </code>
           </span>
+        </div>
+        <div v-if="d.status === 'uncertain'" class="candidate-note">
+          <p>{{ d.decision_reason || '现有证据不足以确认蜱种，请补拍清晰照片或人工复核。' }}</p>
+          <p v-if="d.top_candidates?.length">候选参考：{{ d.top_candidates.map(c => `${c.cn} ${c.confidence.toFixed(1)}%`).join('；') }}</p>
         </div>
       </article>
     </div>

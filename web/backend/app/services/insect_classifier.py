@@ -1,7 +1,7 @@
 """
-昆虫粗分类器（28 类）：Web 级联的第一级——"这是什么昆虫"
+昆虫粗分类器（28 类）：检测后的局部复核与未定位时的整图兜底
 契约：classify(img_rgb: np.ndarray) -> (slug, 置信度 0-100)
-判为 tick 时进入检测+蜱种分支；其他类别直接返回"这是 XX（非蜱虫）"
+整图分类不否决其他位置的蜱虫；低置信结果保留为待确认候选。
 """
 import json
 
@@ -10,14 +10,15 @@ import torch
 import torch.nn as nn
 import torchvision.models as models
 import torchvision.transforms as T
-from PIL import Image
-from torchvision.models import ResNet50_Weights
+from app.services.classification_views import probabilities, prediction
 
 
 class InsectClassifier:
-    def __init__(self, model_path: str, split_json: str, device: str = None):
+    def __init__(self, model_path: str, split_json: str, device: str = None,
+                 view_mode: str = 'center'):
         self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
         self.input_size = 224
+        self.view_mode = view_mode
         with open(split_json, encoding="utf-8") as f:
             split = json.load(f)
         self.classes = sorted({d["label"] for d in split["train"]})
@@ -31,16 +32,16 @@ class InsectClassifier:
         print(f"[昆虫分类] 模型加载完成，设备: {self.device}，类别数: {self.num_classes}")
 
     def _build_model(self, model_path: str):
-        model = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
+        model = models.resnet50(weights=None)
         model.fc = nn.Linear(model.fc.in_features, self.num_classes)
         model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True))
         return model.to(self.device).eval()
 
     def classify(self, img_rgb: np.ndarray) -> tuple:
         """返回 (slug, 置信度百分数)"""
-        img = Image.fromarray(img_rgb)
-        tensor = self.eval_tf(img).unsqueeze(0).to(self.device)
-        with torch.no_grad():
-            probs = self.model(tensor).softmax(dim=1)[0]
-            pred_idx = int(probs.argmax())
-        return self.classes[pred_idx], round(float(probs[pred_idx]) * 100, 2)
+        result = self.predict(img_rgb)
+        return result['slug'], round(result['confidence'], 2)
+
+    def predict(self, img_rgb: np.ndarray) -> dict:
+        scores = probabilities(self.model, img_rgb, self.input_size, self.device, self.view_mode)
+        return prediction(scores, self.classes)

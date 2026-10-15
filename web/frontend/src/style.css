@@ -620,6 +620,15 @@ h1,h2,h3,p {
   font-size:9px;
   color:#718466
 }
+.candidate-note {
+  margin-top: 14px;
+  color: var(--text-muted, #696e65);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.candidate-note p { margin: 5px 0; }
+.detail-detections small { overflow-wrap: anywhere; }
 .image-loading {
   position:absolute;
   inset:0;
@@ -820,6 +829,7 @@ h1,h2,h3,p {
 }
 .detail-detections>div {
   display:flex;
+  flex-wrap:wrap;
   align-items:center;
   gap:20px;
   padding:12px 0;

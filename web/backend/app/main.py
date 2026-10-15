@@ -3,13 +3,26 @@ FastAPI 入口：应用实例、lifespan（模型加载）、CORS、路由注册
 启动：cd web/backend && uvicorn app.main:app --reload --port 8000
 """
 from contextlib import asynccontextmanager
+import json
+import hashlib
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.schemas import ok, fail
 from app.routers import analyze, history
+
+
+def verify_artifact(path, expected_hash):
+    """Calibration belongs to an exact model and split, not just a class count."""
+    digest = hashlib.sha256()
+    with open(path, 'rb') as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b''):
+            digest.update(chunk)
+    if digest.hexdigest() != expected_hash:
+        raise ValueError('模型或数据划分与校准配置不一致，请重新评估并校准')
 
 
 @asynccontextmanager
@@ -27,14 +40,33 @@ async def lifespan(app: FastAPI):
         from app import models  # noqa: F401   import 以注册表定义
         Base.metadata.create_all(engine)
 
+        with open(settings.inference_profile_path, encoding='utf-8') as f:
+            profile = json.load(f)
+        if profile['species']['input_size'] != settings.species_input_size:
+            raise ValueError('蜱种推理尺寸与校准配置不一致')
+        if profile.get('schema_version') != 1 or profile['insect']['input_size'] != 224:
+            raise ValueError('推理校准配置版本或昆虫输入尺寸不受支持')
+        for name, model_path, split_path in [
+            ('species', settings.species_model_path, settings.species_split_json),
+            ('insect', settings.insect_model_path, settings.insect_split_json),
+        ]:
+            verify_artifact(model_path, profile[name]['model_sha256'])
+            verify_artifact(split_path, profile[name]['split_sha256'])
         detector = Detector(settings.detector_path, tile=settings.detect_tile)
         classifier = SpeciesClassifier(
             settings.species_model_path, settings.species_split_json,
-            input_size=settings.species_input_size)
+            input_size=settings.species_input_size,
+            view_mode=profile['species']['view_mode'])
         insect = InsectClassifier(
-            settings.insect_model_path, settings.insect_split_json)
+            settings.insect_model_path, settings.insect_split_json,
+            view_mode=profile['insect']['view_mode'])
+        for name, service in [('species', classifier), ('insect', insect)]:
+            if set(service.classes) != set(profile[name]['thresholds']):
+                raise ValueError(f'{name}校准类别与模型不一致')
+        if set(classifier.classes) != set(profile['species']['region_thresholds']):
+            raise ValueError('区域校准类别与蜱种模型不一致')
         app.state.pipeline = Pipeline(#在前面创建蜱虫检测器和蜱虫分类器这两个实例后，传入Pipeline构造函数
-            insect, detector, classifier, settings.thresholds_path, get_cn_map())
+            insect, detector, classifier, settings.thresholds_path, get_cn_map(), profile=profile)
     except Exception as e:
         # 模型缺失/损坏时快速失败并给出明确提示（fail-fast，比运行中崩溃好排查）
         raise RuntimeError(f"模型加载失败: {e}") from e
@@ -70,4 +102,4 @@ def healthz():
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """兜底异常处理：统一响应格式，不向前端暴露堆栈细节"""
-    return fail(f"服务器内部错误: {type(exc).__name__}", 500)
+    return JSONResponse(status_code=500, content=fail('服务器内部错误，请稍后重试', 500))

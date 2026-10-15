@@ -1,175 +1,132 @@
-"""
-级联推理编排（检测优先，精度优先）：
-    全图检测(1024) → 检出蜱虫 → 蜱种细分类 → 分物种阈值 → 风险规则
-                 → 未检出 → 切块检测补偿（小目标在整图缩小后占比过低，切块放大再试）
-                 → 仍未检出 → 粗分类兜底，只做"疑似什么昆虫"的补充说明
+"""Detection-first cascade with context-aware classification and local verification.
 
-设计取舍（2026-09-12 改造）：
-- 检测模型对蜱虫判别力最强（v3 mAP@0.50=0.866），必须是第一道闸；
-  粗分类曾做第一道闸时会把蜱虫误判成其他昆虫，导致检测根本没机会跑
-- 大目标绝不允许被切块破坏：全图推理永远是第一优先，切块只作未检出时的补偿
-- 大框否决：检出框面积占比≥5% 且全图粗分类判非蛛形纲昆虫（≥90% 置信度）
-  时判定为蚜虫群等密集昆虫误检，退回兜底说明（实测蚜虫群误检框占比 6.3%/49.5%，
-  真蜱虫 Top15 大框图全图粗分类 0 误伤）
-- 第二意见校验：蜱种分类 uncertain 时，昆虫粗分类对同一 crop 独立再判一次，
-  两个模型都不认蜱虫才剔除（防止蚜虫等被检测模型误报成蜱虫）
-- 螨类相似物否决：全图粗分类判 mite/spider_mite（≥80%）且蜱种全 uncertain
-  时判为螨类而非蜱虫（叶螨与蜱虫同为螨类，检测模型难分，全图证据更可靠）
-- 粗分类在兜底位置判错了也只影响补充说明，绝不反向否定检测结论
-
-依赖接口约定：
-- Detector.detect(img_rgb, tile) -> [{"bbox": [...], "score": ...}]
-- SpeciesClassifier.classify(crop_rgb) -> (slug, 置信度百分数)
-- InsectClassifier.classify(img_rgb) -> (slug, 置信度百分数)
-- risk_rules.advice_for(slugs, statuses) -> str
-- cn_map 为 {slug: 中文名}
+Global insect predictions describe the image; they must not veto every detected
+object in a mixed scene. Confidence scores from different models are not compared.
 """
 import csv
-import io
-
 import numpy as np
-from PIL import Image
+from app.utils.images import load_rgb_image
 
-DEFAULT_THRESHOLD = 90.0    # 蜱种阈值表缺失时的兜底
-FALLBACK_SOFT_PROB = 60.0   # 粗分类兜底：低于此置信度措辞用"未能明确识别"，不斩钉截铁下结论
-VETO_PROB = 90.0            # 大框否决线：全图粗分类判非蛛形纲且置信度≥此值，才敢否决检测结果
-BIG_BOX_RATIO = 0.05        # 检出框面积占比≥5% 才启动否决（蚜虫群误检框实测 6.3%/49.5%；
-                            # 真蜱虫 Top15 大框图全图粗分类实测 0 误伤：非蛛形纲最高只到 75.8%）
-ARACHNID = {"tick", "mite", "spider"}   # 蛛形纲：与蜱虫形态相似，粗分类判这些不否决，宁可信检测
-MITE_PROB = 80.0            # 螨类相似物否决线：全图粗分类判 mite/spider_mite 且≥此值、蜱种又全 uncertain 时判螨类
-
+DEFAULT_THRESHOLD = 90.0
+FALLBACK_SOFT_PROB = 60.0
+VETO_PROB = 90.0
+ARACHNID = {'tick', 'mite', 'spider', 'spider_mite'}
 
 def load_thresholds(path) -> dict:
-    thresholds = {}
-    with open(path, encoding="utf-8-sig") as f:
-        for row in csv.DictReader(f):
-            slug = row["类别"]
-            if slug and row.get("MC<2% 阈值"):
-                thresholds[slug] = float(row["MC<2% 阈值"])
-    return thresholds
+    with open(path, encoding='utf-8-sig') as f:
+        return {row['类别']: float(row['MC<2% 阈值']) for row in csv.DictReader(f)
+                if row.get('类别') and row.get('MC<2% 阈值')}
 
+def predict(classifier, rgb, **kwargs):
+    if hasattr(classifier, 'predict'):
+        return classifier.predict(rgb, **kwargs)
+    slug, confidence = classifier.classify(rgb)
+    return {'slug': slug, 'confidence': confidence,
+            'candidates': [{'slug': slug, 'confidence': confidence}]}
 
 class Pipeline:
     def __init__(self, insect_classifier, detector, species_classifier,
-                 thresholds_path, cn_map):
+                 thresholds_path, cn_map, profile=None):
         self.insect_classifier = insect_classifier
         self.detector = detector
         self.species_classifier = species_classifier
-        self.thresholds = load_thresholds(thresholds_path)
+        self.profile = profile or {}
+        species = self.profile.get('species', {})
+        self.thresholds = species.get('thresholds') or load_thresholds(thresholds_path)
+        self.region_thresholds = species.get('region_thresholds', self.thresholds)
+        self.padding = species.get('region_padding', .15)
+        self.whole_weight = species.get('single_image_weight', .5)
+        self.insect_thresholds = self.profile.get('insect', {}).get('thresholds', {})
+        self.rejection = self.profile.get('rejection', {})
         self.cn_map = cn_map
 
     def analyze(self, image_bytes: bytes) -> dict:
-        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        img_np = np.array(img)
-
-        # 第一级：全图检测——大目标绝不能因切块破碎漏检
-        detections = self.detector.detect(img_np, tile=1)
-
-        # 第二级：全图未检出 → 切块补偿（小目标放大再试；多花几十秒，精度优先）
+        image = load_rgb_image(image_bytes)
+        rgb = np.array(image)
+        detections = self.detector.detect(rgb, tile=1)
+        if not detections and self.detector.tile > 1:
+            detections = self.detector.detect(rgb, tile=self.detector.tile)
         if not detections:
-            detections = self.detector.detect(img_np, tile=self.detector.tile)
+            return self._fallback(rgb)
 
-        # 第三级：两轮检测均空 → 粗分类兜底（只作补充说明）
-        if not detections:
-            return self._fallback(img_np)
-
-        # 大框否决：蚜虫群等密集昆虫会被检测模型误判为蜱虫（实测蚜虫群误检框面积占比 33%/49%）
-        if self._insect_superblock(img_np, detections):
-            return self._fallback(img_np)
-
-        # 蜱种细分类 + 分物种阈值（uncertain 时做第二意见校验，防止其他昆虫误报成蜱虫）
-        for d in detections:
-            x1, y1, x2, y2 = [int(v) for v in d["bbox"]]
-            crop = img.crop((x1, y1, x2, y2))
-            slug, prob = self.species_classifier.classify(np.array(crop))
-            thr = self.thresholds.get(slug, DEFAULT_THRESHOLD)
-            d["confidence"] = round(prob, 2)
-            if prob >= thr:
-                d["status"] = "confirmed"
-                d["species_slug"] = slug
-                d["species_cn"] = self.cn_map.get(slug, slug)
+        whole_insect = predict(self.insect_classifier, rgb)
+        single = len(detections) == 1
+        retained = []
+        for source in detections:
+            d = dict(source)
+            x1, y1, x2, y2 = [int(v) for v in d['bbox']]
+            x1, x2 = max(0, x1), min(image.width, x2)
+            y1, y2 = max(0, y1), min(image.height, y2)
+            if x2 <= x1 or y2 <= y1:
                 continue
-            # uncertain：第二意见——昆虫粗分类对同一 crop 独立再判一次
-            # 两个独立模型都不认蜱虫（粗分类判其他昆虫且置信度更高）→ 疑似误检，剔除
-            in_slug, in_prob = self.insect_classifier.classify(np.array(crop))
-            if in_slug != "tick" and in_prob > max(prob, FALLBACK_SOFT_PROB):
-                d["rejected"] = True
+            d['bbox'] = [x1, y1, x2, y2]
+            dx, dy = (x2-x1)*self.padding, (y2-y1)*self.padding
+            crop = image.crop((max(0, int(x1-dx)), max(0, int(y1-dy)),
+                               min(image.width, int(x2+dx)), min(image.height, int(y2+dy))))
+            crop_rgb = np.array(crop)
+            species = predict(self.species_classifier, crop_rgb,
+                              whole_rgb=rgb if single else None,
+                              whole_weight=self.whole_weight if single else 0)
+            slug, probability = species['slug'], species['confidence']
+            table = self.thresholds if single else self.region_thresholds
+            threshold = table.get(slug, DEFAULT_THRESHOLD)
+            d.update(confidence=round(probability, 2), threshold=round(threshold, 4),
+                     candidate_slug=slug, candidate_cn=self.cn_map.get(slug, slug),
+                     top_candidates=[dict(c, cn=self.cn_map.get(c['slug'], c['slug']))
+                                     for c in species['candidates']])
+            confirmed = probability >= threshold
+            insect = predict(self.insect_classifier, crop_rgb)
+            # Reject this proposal, not the entire mixed image. Each confidence is
+            # checked against its own criterion; scores from models are never ranked.
+            local_non_arachnid = insect['slug'] not in ARACHNID
+            whole_non_arachnid = (whole_insect['slug'] not in ARACHNID
+                                   and whole_insect['confidence'] >= 90)
+            if local_non_arachnid and (
+                insect['confidence'] >= self.rejection.get('local_non_arachnid', 90)
+                or (insect['confidence'] >= self.rejection.get('local_consensus', 80)
+                    and whole_non_arachnid)
+            ):
                 continue
-            d["status"] = "uncertain"
-            d["species_slug"] = "uncertain"
-            d["species_cn"] = "无法确定品种"
+            whole_conflict = (whole_insect['slug'] != 'tick' and
+                              whole_insect['confidence'] >= self.rejection.get('whole_non_tick', 90))
+            strong_box = (confirmed and probability >= self.rejection.get('species_support', 90)
+                          and d['score'] >= self.rejection.get('detector_support', .98))
+            if whole_conflict and not strong_box:
+                continue
+            if confirmed:
+                d.update(status='confirmed', species_slug=slug,
+                         species_cn=self.cn_map.get(slug, slug), decision_reason='达到确认阈值')
+            else:
+                d.update(status='uncertain', species_slug='uncertain',
+                         species_cn='无法确定品种', decision_reason='未达到确认阈值')
+            retained.append(d)
 
-        # 全部检出框被第二意见剔除 → 退回粗分类兜底说明
-        detections = [d for d in detections if not d.get("rejected")]
-        if not detections:
-            return self._fallback(img_np)
-
-        # 螨类相似物否决：全图粗分类判 mite/spider_mite（叶螨等）且蜱种全 uncertain
-        # → 判为螨类而非蜱虫（叶螨与蜱虫同为螨类，检测模型难分，全图证据更可靠）
-        if all(d["status"] == "uncertain" for d in detections) and self._mite_like(img_np):
-            return self._fallback(img_np)
-
-        slugs = [d["species_slug"] for d in detections]
-        statuses = [d["status"] for d in detections]
+        if not retained:
+            return self._fallback(rgb, whole_insect)
         from app.services import risk_rules
-        advice = risk_rules.advice_for(slugs, statuses)
+        advice = risk_rules.advice_for([d['species_slug'] for d in retained],
+                                       [d['status'] for d in retained])
+        return {'detections': retained,
+                'insect': {'slug': 'tick', 'cn': '蜱虫',
+                           'confidence': round(max(d['score'] for d in retained)*100, 2)},
+                'risk_advice': advice}
 
-        return {
-            "detections": detections,
-            # 检测优先后，蜱虫分支的 insect 信息取最高检测分（前端仅无检出时才展示此字段）
-            "insect": {"slug": "tick", "cn": "蜱虫",
-                       "confidence": round(max(d["score"] for d in detections) * 100, 2)},
-            "risk_advice": advice,
-        }
-
-    def _insect_superblock(self, img_np: np.ndarray, detections: list) -> bool:
-        """大框误检否决：检测出大框（面积占比≥15%）且全图粗分类判非蛛形纲昆虫（≥90%）
-        时，判定为蚜虫群等密集昆虫被误检为蜱虫，返回 True 走兜底说明。
-        真蜱虫框占比通常<1%，宏观特写蜱虫粗分类也会判 tick/spider/mite，都不会被否决"""
-        h, w = img_np.shape[:2]
-        max_area = max((b[2] - b[0]) * (b[3] - b[1]) for b in (d["bbox"] for d in detections))
-        if max_area / (h * w) < BIG_BOX_RATIO:
-            return False
-        slug, prob = self.insect_classifier.classify(img_np)
-        return slug not in ARACHNID and prob >= VETO_PROB
-
-    def _mite_like(self, img_np: np.ndarray) -> bool:
-        """全图粗分类判螨类相似物（mite/spider_mite）且置信度足够高"""
-        slug, prob = self.insect_classifier.classify(img_np)
-        return slug in ("mite", "spider_mite") and prob >= MITE_PROB
-
-    def _fallback(self, img_np: np.ndarray) -> dict:
-        """两轮检测均未检出的兜底：粗分类只作补充说明，绝不反向否定检测结论"""
-        slug, prob = self.insect_classifier.classify(img_np)
+    def _fallback(self, rgb: np.ndarray, result=None) -> dict:
+        result = result or predict(self.insect_classifier, rgb)
+        slug, probability = result['slug'], result['confidence']
+        threshold = self.insect_thresholds.get(slug, FALLBACK_SOFT_PROB)
+        status = 'confirmed' if probability >= threshold and slug != 'tick' else 'uncertain'
         cn = self.cn_map.get(slug, slug)
-        if slug == "tick":
-            # 粗分类觉得像蜱虫但检测器定位不到：宁可"不确定"，也不要"非蜱虫"
-            return {
-                "detections": [],
-                "insect": {"slug": "tick", "cn": "蜱虫", "confidence": prob},
-                "risk_advice": ("疑似蜱虫但检测器未能定位，建议更换清晰、对焦准确的"
-                                "照片重试。本结果仅供参考，不构成医疗建议。"),
-            }
-        if slug in ("mite", "spider_mite"):
-            # 螨虫/叶螨与蜱虫形态相似，措辞留余地
-            return {
-                "detections": [],
-                "insect": {"slug": slug, "cn": cn, "confidence": prob},
-                "risk_advice": (f"未检出蜱虫，图像识别为{cn}（与蜱虫形态相似）。"
-                                "若照片来自疑似叮咬现场，建议人工复核。"
-                                "本结果仅供参考，不构成医疗建议。"),
-            }
-        if prob < FALLBACK_SOFT_PROB:
-            # 低置信度：不斩钉截铁下结论
-            return {
-                "detections": [],
-                "insect": {"slug": slug, "cn": cn, "confidence": prob},
-                "risk_advice": (f"未检出蜱虫，未能明确识别昆虫类别（疑似{cn}）。"
-                                "本结果仅供参考，不构成医疗建议。"),
-            }
-        return {
-            "detections": [],
-            "insect": {"slug": slug, "cn": cn, "confidence": prob},
-            "risk_advice": (f"未检出蜱虫，图像识别为{cn}（非蜱虫），无需蜱虫风险提示。"
-                            "本结果仅供参考，不构成医疗建议。"),
-        }
+        if slug == 'tick':
+            message = '疑似蜱虫但尚未定位，请补充清晰照片或进行人工复核。'
+        elif status == 'uncertain':
+            message = f'未检出蜱虫，昆虫类别尚不确定，候选为{cn}，建议补拍或人工复核。'
+        elif slug in ('mite', 'spider_mite'):
+            message = f'未检出蜱虫，候选为{cn}，与蜱虫形态相似，建议人工复核。'
+        else:
+            message = f'未检出蜱虫，图像候选类别为{cn}。'
+        return {'detections': [], 'insect': {
+            'slug': slug, 'cn': cn, 'confidence': round(probability, 2),
+            'status': status, 'threshold': round(threshold, 4),
+            'top_candidates': [dict(c, cn=self.cn_map.get(c['slug'], c['slug']))
+                               for c in result['candidates']]}, 'risk_advice': message}

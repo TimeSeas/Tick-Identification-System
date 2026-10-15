@@ -22,7 +22,7 @@ class Detector:
         
     def _build_model(self, model_path:str):
         """构建Mask R-CNN二类模型"""
-        model = maskrcnn_resnet50_fpn(pretrained=False)
+        model = maskrcnn_resnet50_fpn(weights=None, weights_backbone=None)
 
         in_features = model.roi_heads.box_predictor.cls_score.in_features
         model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes=2)

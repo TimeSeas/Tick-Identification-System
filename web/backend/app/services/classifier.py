@@ -8,14 +8,15 @@ import torch
 import torch.nn as nn
 import torchvision.transforms as T
 import torchvision.models as models
-from torchvision.models import ResNet50_Weights
-from PIL import Image
 import numpy as np
+from app.services.classification_views import probabilities, prediction
 class SpeciesClassifier:
     """蜱种分类器"""
-    def __init__(self, model_path: str, split_json: str, input_size: int = 448):
+    def __init__(self, model_path: str, split_json: str, input_size: int = 448,
+                 view_mode: str = 'center'):
         self.device =('cuda' if torch.cuda.is_available() else 'cpu')
         self.input_size=input_size
+        self.view_mode = view_mode
         with open(split_json,encoding='utf-8') as f:
             split=json.load(f)
         self.classes=sorted({d["label"] for d in split["train"]})
@@ -38,7 +39,7 @@ class SpeciesClassifier:
            """
            # 构建多蜱虫分类模型
            """
-           model = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
+           model = models.resnet50(weights=None)
            model.fc = nn.Linear(model.fc.in_features, self.num_classes)
            state_dict = torch.load(model_path, map_location=self.device, weights_only=True)
            model.load_state_dict(state_dict)
@@ -48,17 +49,18 @@ class SpeciesClassifier:
         """
         对裁剪后的蜱虫区域进行分类,输入图像RGB，输出类别和置信值
         :param crop_rgb: shape (H, W, 3)，RGB 格式，像素值 0~255
-        :return: (slug, confidence) 例如 ("ixodes_ricinus", 0.9523)
+        :return: (slug, confidence)，置信度为0至100的百分数
         """
 
-        img=Image.fromarray(crop_rgb)
-        tensor=self.eval_tf(img).unsqueeze(0).to(self.device)
-        with torch.no_grad():
-            probs=self.model(tensor).softmax(dim=1)[0]
-            pred_idx=int(probs.argmax())
-            confidence=float(probs[pred_idx])
-        slug = self.classes[pred_idx]
-        return slug, round(confidence*100, 2)#转为百分数        
+        result = self.predict(crop_rgb)
+        return result['slug'], round(result['confidence'], 2)
+
+    def predict(self, crop_rgb: np.ndarray, whole_rgb=None, whole_weight=0.0) -> dict:
+        scores = probabilities(self.model, crop_rgb, self.input_size, self.device, self.view_mode)
+        if whole_rgb is not None and whole_weight > 0:
+            whole = probabilities(self.model, whole_rgb, self.input_size, self.device, self.view_mode)
+            scores = (1 - whole_weight) * scores + whole_weight * whole
+        return prediction(scores, self.classes)
         
 
 
