@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "branch": "codex/practice-report-frontend",
+  "baseline_project_reference": "25427928",
+  "previous_branch_release": "dbf87bc1",
+  "isolated_on": "2026-10-24",
+  "files": [
+    {
+      "source": "docs/optimization_plan.md",
+      "canonical": "branch_docs/codex-practice-report-frontend/history/2026-10-15/optimization_plan.md",
+      "action": "moved",
+      "source_sha256": "1f5fe405593056a37da3dac56febdb5eacdfc3a72459e0d04eb6f6cad122ce26",
+      "isolated_sha256": "1f5fe405593056a37da3dac56febdb5eacdfc3a72459e0d04eb6f6cad122ce26"
+    },
+    {
+      "source": "docs/optimization_results.md",
+      "canonical": "branch_docs/codex-practice-report-frontend/history/2026-10-15/optimization_results.md",
+      "action": "moved",
+      "source_sha256": "b93eda411c2a81bae1a925e33e38715dde02106d38c941b3fdf2b05eae9b9011",
+      "isolated_sha256": "b93eda411c2a81bae1a925e33e38715dde02106d38c941b3fdf2b05eae9b9011"
+    },
+    {
+      "source": "docs/optimization_cascade_evaluation.md",
+      "canonical": "branch_docs/codex-practice-report-frontend/history/2026-10-15/cascade_evaluation.md",
+      "action": "moved",
+      "source_sha256": "6733e61486719cea7c00b744659c4a1d277fb9dc9ab00c91fd1add5742f58a88",
+      "isolated_sha256": "6733e61486719cea7c00b744659c4a1d277fb9dc9ab00c91fd1add5742f58a88"
+    },
+    {
+      "source": "docs/practice_report_validation.md",
+      "canonical": "branch_docs/codex-practice-report-frontend/history/2026-10-15/practice_report_validation.md",
+      "action": "moved",
+      "source_sha256": "4b6dc663af01affe49f498ec6e1f372bd71227f57a64f80104c6c6a0a1b068aa",
+      "isolated_sha256": "4b6dc663af01affe49f498ec6e1f372bd71227f57a64f80104c6c6a0a1b068aa"
+    },
+    {
+      "source": "docs/recognition_rebuild_plan_20261024.md",
+      "canonical": "branch_docs/codex-practice-report-frontend/plans/recognition_rebuild_20261024.md",
+      "action": "moved",
+      "source_sha256": "837ba252661977502d71c175f3f26e4f61ac68631afcac72e9c72afb85116dfc",
+      "isolated_sha256": "2c9e5e4c944c62f784571d6893e67e95a2bcc60bf139a57f9617bc9d8e804c8e"
+    },
+    {
+      "source": "README.md",
+      "snapshot": "branch_docs/codex-practice-report-frontend/baseline/README_dbf87bc1.md",
+      "reference_commit": "25427928",
+      "original_sha256": "ea56b5140e007d464fa230f5765f0ff6217dd5db62477172a7d64040b031d57f",
+      "reference_sha256": "92689553154c7da2063ffc7ede3fb9adb5b632d25b4565919e85d0104b3a9943",
+      "action": "restore reference plus routing only"
+    },
+    {
+      "source": "CLAUDE.md",
+      "snapshot": "branch_docs/codex-practice-report-frontend/baseline/CLAUDE.md",
+      "reference_commit": "25427928",
+      "original_sha256": "418b32837e6827d1c9c3b03c2b8d33e49e89b60287d1a84e287b45eb12dfbcb4",
+      "reference_sha256": "8d40f482220aa08253d5cea1b9d61dac47a09e58d8882c5312bf85409cd8c08c",
+      "action": "restore reference plus routing only"
+    },
+    {
+      "source": "web/Docker部署指南.md",
+      "snapshot": "branch_docs/codex-practice-report-frontend/baseline/web_Docker部署指南.md",
+      "reference_commit": "25427928",
+      "original_sha256": "bb61aace6042d46ab693d26042d3d9afcffb0b67cb2f08c56bb554ff190fd44a",
+      "reference_sha256": "88b41b3f15ad75b9b1f98a0499701a7de8a0d7a06bb201c1fabf66a71ac3cfbf",
+      "action": "restore reference plus routing only"
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 # 基于Mask R-CNN的蜱虫识别系统的设计与实现 Docker部署指南
 
+> 本文保留原项目部署说明。Codex优化分支的配置、实验与维护请以[分支文档](../branch_docs/codex-practice-report-frontend/README.md)和[分支部署说明](../branch_docs/codex-practice-report-frontend/operations/deployment.md)为准。
+
 > 2026-09-10 · 从零讲清：装什么、写什么、怎么跑、怎么维护、怎么用
 > 本文基于本项目实际文件（`web/docker-compose.yml` 等），与代码同步维护
 
@@ -137,7 +139,5 @@ curl "http://localhost:8080/api/v1/history?page=1&size=10"
 4. **标注图中文乱码**：容器是 Linux，不存在宿主机 `C:/Windows/Fonts` 的字体，PIL 回退默认字体（无中文字形）→ 中文变方块——已在后端 Dockerfile 安装 `fonts-noto-cjk`，visualize.py 按"容器路径优先、Windows 路径兜底"顺序查找字体。**通用教训：任何依赖宿主机资源的路径（字体/模型/数据）进容器都要显式处理**
 
 ## 2026-10-15 配置校准
-
-本优化分支新增只读挂载 `../configs:/app/config:ro`，通过 `INFERENCE_PROFILE_PATH=/app/config/inference_optimization.json` 读取双视图、上下文与校准阈值。本地默认读取 `../../configs/inference_optimization.json`。更新配置后需重启后端，输入尺寸或类别与模型不匹配会启动失败。分类与检测模型构建使用 `weights=None` / `weights_backbone=None` 后加载完整本地权重，不再依赖下载初始化权重。模型测试与系统级联测试的区别见 [优化评估](../docs/optimization_results.md)。
 
 Compose与本地默认均使用v3检测和28类448蜱种分类，新增 `SPECIES_INPUT_SIZE=448`。昆虫粗分类使用 `/app/models/insect_classifier/model/insect_best.pth`，划分文件由 `../data/insects_split.json` 单文件只读挂载到 `/app/insects_split.json`。完整变量表与测试边界见 [实践报告与模型核验说明](../docs/practice_report_validation.md)。本轮未执行Docker镜像构建与容器端到端测试。

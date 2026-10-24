@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-> 2026-10-15用户分支授权：`codex/practice-report-frontend` 为智能体全程开发的优化实践分支，Codex等智能体可开发、修复、测试和同步文档，不修改或合并主分支。主分支仍遵循用户自主完成原则；本分支授权详见 `AGENTS.md`。实践报告与历史实验独立保留，优化说明见 `docs/optimization_plan.md`。
+> 原项目说明与分支开发记录已分开维护。当前 `codex/practice-report-frontend` 的智能体开发授权、运行配置、计划、实验和交接状态，以[分支文档入口](branch_docs/codex-practice-report-frontend/README.md)及根 `AGENTS.md` 的分支例外为准；不要把本文基线指标当成当前分支效果。
 
 本项目用于指导 Claude Code (claude.ai/code) 在本仓库中的工作方式。
 
@@ -132,7 +132,7 @@ python scripts/sam_auto_label.py --mode auto --input-dirs archive2/dataset/train
 | 昆虫粗分类训练 | `src/train/train_insect_classifier.py`（28 类文件夹标签，Web 级联第一级）；划分脚本 `scripts/split_insects.py` → `data/insects_split.json`；质检脚本 `scripts/qc_sam_review.py`（SAM 复核疑点清单） |
 | 蜱种推理演示 | `src/inference/infer_tick_species.py`（测试集抽样推理，预览图标注真实/预测蜱种含中文名，绿对红错 + summary.csv） |
 | 商业计划书生成 | `scripts/generate_business_plan.py` → `output/智蜱卫士_商业计划书.docx` |
-| Web 系统（WP6） | `web/backend/`（FastAPI+SQLAlchemy，检测优先级联：全图检测→空检出切块补偿→区域双视图/单候选整图融合→校准阈值与逐框冲突复核→粗分类兜底；历史记录）、`web/frontend/`（Vue3+TS+Element Plus）、`web/docker-compose.yml`（nginx+uvicorn 两容器）、`web/Docker部署指南.md`（装什么/怎么写/怎么跑/怎么维护/怎么用） |
+| Web 系统（WP6） | `web/backend/`（FastAPI+SQLAlchemy，检测优先级联：全图检测→切块补偿→蜱种+阈值→三层误检防御→粗分类兜底；历史记录）、`web/frontend/`（Vue3+TS+Element Plus）、`web/docker-compose.yml`（nginx+uvicorn 两容器）、`web/Docker部署指南.md`（装什么/怎么写/怎么跑/怎么维护/怎么用） |
 
 ## 架构
 

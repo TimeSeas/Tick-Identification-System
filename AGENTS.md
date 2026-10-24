@@ -11,6 +11,11 @@
 - **分支例外（用户于2026-10-15明确授权）**：`codex/practice-report-frontend` 为智能体全程开发的优化实践分支。在此分支上，Codex等智能体可直接开发、修复、测试与维护文档，以提高蜱虫检测、蜱种/昆虫识别及系统可用性。不得修改或合并到主分支；本授权不改变主分支的自主完成原则。优化实践独立于实践报告，保留原权重与历史实验，指标须区分验证集选参、独立测试与线上效果。
 - 毕业设计整体规划见 `毕业设计/毕业设计系统规划.md`（8 个工作包 + 时间线 + 论文结构）
 
+
+## Codex分支文档入口
+
+在 `codex/practice-report-frontend` 工作时，先读 `branch_docs/codex-practice-report-frontend/README.md`、`AGENTS.md`、`CONTEXT.md` 和当前计划。该目录是分支文档唯一维护位置；原项目 README、docs、论文/毕业设计材料仅作基线，不追加分支实验结论。每次工作更新分支上下文与历史，模型/数据哈希和产物路径写入实验记录。主分支不修改、不合并。
+
 ## 项目概述
 
 基于Mask R-CNN的蜱虫识别系统的设计与实现（本科毕业设计）— 上传照片，系统回答：**图上有几只蜱虫、每一只在哪、分别是什么蜱种**；非蜱虫照片给出疑似昆虫类别兜底。核心为三模型级联：M1 蜱虫检测（Mask R-CNN，现役 v3 mAP@0.50=0.866）、M2 蜱种细粒度分类（28 类部署 + 分物种置信阈值"存疑"机制）、昆虫粗分类兜底（28 类 acc 94.25%）。**对外统一口径（2026-10-14 定位收敛）**：聚焦识别——数量 + 逐只定位 + 蜱种；部件级实例分割（盾板/足等）为深化方向；M3 叮咬伤口分割为规划中的扩展模块（tick-bite 数据集就绪）。成果形态：Web 应用为主 + 桌面 GUI / 边缘部署可选。
@@ -158,7 +163,7 @@ python scripts/sam_auto_label.py --mode auto --input-dirs archive2/dataset/train
 - ⚠️ 训练/推理分辨率坑：transform 的 min_size/max_size **不随 state_dict 保存**，重建模型默认回到 800/1333——评估与 Web 推理都必须在 load_state_dict 后手动 `model.transform.min_size=(1024,)`、`max_size=1200`（detector.py 与 `src/eval/evaluate_model.py` 均已修复，2026-10-15）
 - 蜱种推理配置：`SPECIES_INPUT_SIZE=448`，由 main.py 传入分类器；切换权重时须同步输入尺度、划分文件和阈值表。Docker已与本地统一为v3检测+28类448蜱种分类，并挂载 `data/insects_split.json` 供粗分类使用。
 - 正式题名（2026-10-15 用户指定）：**基于Mask R-CNN的蜱虫识别系统的设计与实现**。本轮用户明确授权 Codex 全程完成前端设计、截图，以及修复 Web 分类输入、Docker模型配置、检测评估分辨率三处具体问题；不扩大为其他功能代码授权。
-- 本轮重测及前端操作说明见 `docs/practice_report_validation.md`；报告源材料在 `毕业设计/实践报告工作区/`（本地目录，不随代码推送）。
+- 本轮重测及前端操作说明见 `branch_docs/codex-practice-report-frontend/history/2026-10-15/practice_report_validation.md`；报告源材料在 `毕业设计/实践报告工作区/`（本地目录，不随代码推送）。
 - Web 检测器 `detector.py`：`detect(img_rgb, tile)` 支持全图（tile=1）/切块（tile=2）按需切换；全图与切块路径均带 IoU=0.3 重叠去重（大目标重复检出框实测 IoU 0.476）
 
 ## 数据结构
