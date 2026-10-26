@@ -22,7 +22,7 @@ from app.services.detector import Detector
 from app.services.classifier import SpeciesClassifier
 from app.services.insect_classifier import InsectClassifier
 from app.services.recognition_classifier import RecognitionClassifier
-from app.services.recognition_model import prepare_image
+from app.services.recognition_pipeline import score_proposals
 from app.services.pipeline import Pipeline
 from evaluate_optimized_cascade import match_boxes
 
@@ -86,6 +86,7 @@ def main():
         evaluator_sha256=sha256(Path(__file__)),
         model_sha256=sha256(ROOT/'web/backend/app/services/recognition_model.py'),
         classifier_sha256=sha256(ROOT/'web/backend/app/services/recognition_classifier.py'),
+        candidate_policy_sha256=sha256(ROOT/'web/backend/app/services/recognition_pipeline.py'),
         old_pipeline_sha256=sha256(ROOT/'web/backend/app/services/pipeline.py'))
     cache_path=args.out/'detections.json'
     cache_metadata={k:metadata[k] for k in ('detector_sha256','split_sha256','subset')}
@@ -139,9 +140,7 @@ def main():
         if not proposals:
             proposals=[d for d in cached.row['tiles'] if d['score']>=args.new_detection_threshold]
         proposed=[]
-        for detection in proposals:
-            crop=prepare_image(image,detection['bbox'],normalize_exif=False)
-            result=candidate.predict(np.array(crop))
+        for detection,result,crop in score_proposals(image,proposals,candidate):
             proposed.append(dict(detection,tick_probability=result['tick_probability'],
                 candidate_slug=result['slug'],species_confidence=result['confidence']))
         traces['rows'].append(dict(path=row['path'],old=previous['detections'],new=proposed))

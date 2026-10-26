@@ -20,6 +20,8 @@ python src/train/train_recognition_rebuild.py --split output/optimization_202610
 
 恢复仅允许同配置、同总epochs、同文件SHA，从last_checkpoint.pth恢复；max-steps的partial检查点不允许正式部署。新实验使用新目录，原权重不覆盖。
 
+2026-10-26第7轮中断，主/worker均退出，无failure.json或异常栈；前6轮有效。已使用同命令追加`--resume output/optimization_20261015/rebuild_20261024/recognition_run01/last_checkpoint.pth`恢复，日志单独保存到`logs/recognition_run01_resume01.log`。中断前后第7轮前350batch损失相同，正式epochs记录没有重复第1—6轮。该恢复不代表已完成15轮。
+
 ## 已发生的流程检查
 
 检测pilot01因原图mask回贴OOM失败，pilot02因代理EXIF尺寸失败，证据保留。pilot03完成4训练步及全部500图验证。分类pilot完成4步及2343验证视图，用于排查梯度/内存/数据读取，不能计效果。

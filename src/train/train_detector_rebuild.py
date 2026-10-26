@@ -28,6 +28,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from train_torchvision import JointDetectionTransform, collate_fn
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT/'web/backend'))
+from app.services.detector import _dedup, DEDUP_IOU
 DEFAULT_PRETRAINED = Path.home()/'.cache/torch/hub/checkpoints/maskrcnn_resnet50_fpn_coco-bf2d0c1e.pth'
 
 
@@ -184,6 +186,11 @@ def evaluate(model, loader, device, score_threshold=.5):
         return _evaluate_bbox_outputs(model, loader, device, score_threshold)
 
 
+def service_dedup(boxes, scores):
+    retained = _dedup([dict(bbox=box,score=score) for box,score in zip(boxes,scores)])
+    return [row['bbox'] for row in retained], [row['score'] for row in retained]
+
+
 def _evaluate_bbox_outputs(model, loader, device, score_threshold):
     records = []
     tp = fp = fn = absolute_error = detection_images = 0
@@ -196,6 +203,7 @@ def _evaluate_bbox_outputs(model, loader, device, score_threshold):
             keep = (output['scores'] >= score_threshold) & (output['labels'] == 1)
             boxes = output['boxes'][keep].cpu().tolist()
             scores = output['scores'][keep].cpu().tolist()
+            boxes, scores = service_dedup(boxes, scores)
             truth = target['boxes'].tolist()
             a, b, c = match_detections(boxes, scores, truth)
             if row.get('negative_label'):
@@ -213,7 +221,7 @@ def _evaluate_bbox_outputs(model, loader, device, score_threshold):
     precision = tp/(tp+fp) if tp+fp else 0.0
     recall = tp/(tp+fn) if tp+fn else 0.0
     metrics = dict(images=len(records), detection_images=detection_images, tp=tp, fp=fp, fn=fn,
-                   precision=precision, recall=recall,
+                   precision=precision, recall=recall, service_dedup_iou=DEDUP_IOU,
                    f1=2*precision*recall/(precision+recall) if precision+recall else 0.0,
                    count_mae=absolute_error/detection_images,
                    negative_proxy_images=negative_images,
@@ -298,6 +306,8 @@ def main(argv=None):
               for key, value in vars(args).items()}
     config.update(split_sha256=file_sha256(args.split), pretrained_sha256=file_sha256(args.pretrained),
                   min_size=1024, max_size=1200, class_names=['background', 'tick'],
+                  service_dedup_iou=DEDUP_IOU,
+                  service_detector_sha256=file_sha256(ROOT/'web/backend/app/services/detector.py'),
                   trainer_sha256=file_sha256(Path(__file__)),
                   joint_transform_sha256=file_sha256(Path(__file__).with_name('train_torchvision.py')))
     # COCO cache identity prevents accidentally passing the deployed two-class v3.
@@ -324,7 +334,7 @@ def main(argv=None):
         for key in ('split_sha256', 'pretrained_sha256', 'min_size', 'max_size', 'batch_size',
                     'accumulate', 'freeze_low_stages', 'lr', 'negative_penalty', 'seed', 'workers', 'amp',
                     'device', 'max_steps',
-                    'trainer_sha256', 'joint_transform_sha256'):
+                    'trainer_sha256', 'joint_transform_sha256', 'service_dedup_iou', 'service_detector_sha256'):
             if prior_config[key] != config[key]:
                 raise ValueError(f'Resume configuration mismatch: {key}')
         if checkpoint['partial']:

@@ -11,7 +11,7 @@ from torchvision.models.detection.roi_heads import RoIHeads
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'src/train'))
 from train_torchvision import JointDetectionTransform, collate_fn, train_one_epoch, validate
-from train_detector_rebuild import RebuildDataset, bbox_only_evaluation, evaluate, train_epoch, validate_split
+from train_detector_rebuild import RebuildDataset, bbox_only_evaluation, evaluate, train_epoch, validate_split, service_dedup
 
 
 class JointTransformTests(unittest.TestCase):
@@ -163,6 +163,11 @@ class MaskAwarePredictionModel(PredictionModel):
 
 
 class EvaluationTests(unittest.TestCase):
+    def test_detection_selection_uses_service_overlap_deduplication(self):
+        boxes,scores=service_dedup([[0.,0.,10.,10.],[4.,0.,14.,10.]], [.9,.8])
+        self.assertEqual(boxes,[[0.,0.,10.,10.]])
+        self.assertEqual(scores,[.9])
+
     def test_torchvision_mask_gate_is_disabled_only_inside_bbox_context(self):
         model = MaskAwarePredictionModel()
         self.assertTrue(RoIHeads.has_mask(model.roi_heads))
