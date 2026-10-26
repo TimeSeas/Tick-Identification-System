@@ -66,13 +66,19 @@
     }
   ],
   "recognition_rebuild": {
-    "code_checkpoint": "c8fec462",
-    "detector_training": "v3_finetune_run01_running_after_generic_run02_failed_recall_gate",
+    "code_checkpoint": "eb68cc47 plus balanced release pending commit",
+    "detector_training": "v3_finetune_run01_complete_epoch2_selected",
     "detector_manifest_sha256": "aee2baf8b3c0b7e9b1fd110501e346f62b638cd7f7d5f30e5185690250e13013",
     "recognition_checkpoint_sha256": "0c01ff4ad8a0eb6a2efa5f22e5c34acbf6575424e6d4d65c51a01c7d926bb065",
     "recognition_status": "not_promoted_source_recall_failure",
     "challenge_manifest_sha256": "de4e168d08c6bc72b8838e013211c82580160ffdfeb4d3d245bf594931b18080",
-    "default_profile": "configs/inference_optimization.json",
-    "main_unchanged": "2029625d3752c14cdd6f268431eb0323e88c2bb7"
+    "default_profile": "configs/inference_detector_balanced.json",
+    "main_unchanged": "2029625d3752c14cdd6f268431eb0323e88c2bb7",
+    "detector_weights_sha256": "9e7a3a9b9cb32df87a37be71d85068f98a28d17bb61f828354534d4e95ed8b7c",
+    "detector_status": "branch_default_balanced_det03",
+    "default_profile_sha256": "6164cdf41a781fa3fcc43ebc5990ad460a238b3ff4efc6bd167298fa8a2e86d0",
+    "release_manifest": "output/optimization_20261015/rebuild_20261024/release_manifest.json",
+    "release_manifest_sha256": "e4930e1afd10f7ceeba9ddd58bb8a0727432a29c79ed816aeaef9dbdd073aff9",
+    "source_check_status": "complete_with_documented_recall_losses_and_unknown_species_risk"
   }
 }

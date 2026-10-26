@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "baseline_commit": "25427928",
+  "selection_split": "val",
+  "species": {
+    "view_mode": "center_full",
+    "input_size": 448,
+    "region_padding": 0.15,
+    "single_image_weight": 0.5,
+    "thresholds": {
+      "amblyomma_americanum": 54.873443603515625,
+      "amblyomma_cajennense": 54.873443603515625,
+      "amblyomma_hebraeum": 54.873443603515625,
+      "amblyomma_maculatum": 54.873443603515625,
+      "amblyomma_ovale": 54.873443603515625,
+      "amblyomma_triguttatum": 54.873443603515625,
+      "dermacentor_albipictus": 54.873443603515625,
+      "dermacentor_andersoni": 54.873443603515625,
+      "dermacentor_marginatus": 54.873443603515625,
+      "dermacentor_occidentalis": 54.873443603515625,
+      "dermacentor_reticulatus": 54.873443603515625,
+      "dermacentor_variabilis": 54.873443603515625,
+      "haemaphysalis_longicornis": 54.873443603515625,
+      "hyalomma_aegyptium": 54.873443603515625,
+      "hyalomma_marginatum": 54.873443603515625,
+      "ixodes_frontalis": 54.873443603515625,
+      "ixodes_hexagonus": 54.873443603515625,
+      "ixodes_holocyclus": 54.873443603515625,
+      "ixodes_nipponensis": 54.873443603515625,
+      "ixodes_pacificus": 54.873443603515625,
+      "ixodes_persulcatus": 54.873443603515625,
+      "ixodes_ricinus": 54.873443603515625,
+      "ixodes_scapularis": 54.873443603515625,
+      "ixodes_vespertilionis": 54.873443603515625,
+      "rhipicephalus_maculatus": 54.873443603515625,
+      "rhipicephalus_microplus": 54.873443603515625,
+      "rhipicephalus_pulchellus": 54.873443603515625,
+      "rhipicephalus_sanguineus": 54.873443603515625
+    },
+    "calibration": {
+      "method": "global_fallback",
+      "target_validation_precision": 0.95,
+      "global": {
+        "samples": 453,
+        "accepted": 235,
+        "correct_accepted": 224,
+        "accepted_accuracy": 0.9531914893617022,
+        "coverage": 0.5187637969094923,
+        "useful_correct_fraction": 0.49448123620309054
+      },
+      "predicted_class": {
+        "samples": 453,
+        "accepted": 223,
+        "correct_accepted": 215,
+        "accepted_accuracy": 0.9641255605381166,
+        "coverage": 0.4922737306843267,
+        "useful_correct_fraction": 0.4746136865342163
+      },
+      "selected": {
+        "samples": 453,
+        "accepted": 235,
+        "correct_accepted": 224,
+        "accepted_accuracy": 0.9531914893617022,
+        "coverage": 0.5187637969094923,
+        "useful_correct_fraction": 0.49448123620309054
+      }
+    },
+    "calibration_population": "Validation images with exactly one baseline detection; image-level species labels inherited by the detected region",
+    "region_thresholds": {
+      "amblyomma_americanum": 62.14170455932617,
+      "amblyomma_cajennense": 79.3040771484375,
+      "amblyomma_hebraeum": 79.3040771484375,
+      "amblyomma_maculatum": 79.3040771484375,
+      "amblyomma_ovale": 79.3040771484375,
+      "amblyomma_triguttatum": 79.3040771484375,
+      "dermacentor_albipictus": 79.3040771484375,
+      "dermacentor_andersoni": 79.3040771484375,
+      "dermacentor_marginatus": 79.3040771484375,
+      "dermacentor_occidentalis": 79.3040771484375,
+      "dermacentor_reticulatus": 79.3040771484375,
+      "dermacentor_variabilis": 75.50750732421875,
+      "haemaphysalis_longicornis": 70.43274688720703,
+      "hyalomma_aegyptium": 79.3040771484375,
+      "hyalomma_marginatum": 79.3040771484375,
+      "ixodes_frontalis": 79.3040771484375,
+      "ixodes_hexagonus": 79.3040771484375,
+      "ixodes_holocyclus": 79.3040771484375,
+      "ixodes_nipponensis": 79.3040771484375,
+      "ixodes_pacificus": 79.3040771484375,
+      "ixodes_persulcatus": 79.3040771484375,
+      "ixodes_ricinus": 100.0001,
+      "ixodes_scapularis": 100.0001,
+      "ixodes_vespertilionis": 79.3040771484375,
+      "rhipicephalus_maculatus": 79.3040771484375,
+      "rhipicephalus_microplus": 79.3040771484375,
+      "rhipicephalus_pulchellus": 79.3040771484375,
+      "rhipicephalus_sanguineus": 79.3040771484375
+    },
+    "region_calibration": {
+      "method": "predicted_class",
+      "target_validation_precision": 0.95,
+      "global": {
+        "samples": 453,
+        "accepted": 152,
+        "correct_accepted": 145,
+        "accepted_accuracy": 0.9539473684210527,
+        "coverage": 0.3355408388520971,
+        "useful_correct_fraction": 0.3200883002207506
+      },
+      "predicted_class": {
+        "samples": 453,
+        "accepted": 153,
+        "correct_accepted": 147,
+        "accepted_accuracy": 0.9607843137254902,
+        "coverage": 0.33774834437086093,
+        "useful_correct_fraction": 0.32450331125827814
+      },
+      "selected": {
+        "samples": 453,
+        "accepted": 153,
+        "correct_accepted": 147,
+        "accepted_accuracy": 0.9607843137254902,
+        "coverage": 0.33774834437086093,
+        "useful_correct_fraction": 0.32450331125827814
+      }
+    },
+    "region_calibration_population": "Context-only crops from single-detection validation images; mixed-species multi-object scenes still need independent annotation",
+    "model_sha256": "e5301d269a45e0925d21f4573a503b8cc112834374e077db360595163859ab56",
+    "split_sha256": "0407387bb57eab5306aa16de55ef70366fb83630b3238333a1039d4d08808aa7"
+  },
+  "insect": {
+    "view_mode": "center_full",
+    "input_size": 224,
+    "thresholds": {
+      "africanized_honey_bee": 50.20173645019531,
+      "ant": 50.20173645019531,
+      "aphid": 50.20173645019531,
+      "armyworm": 50.20173645019531,
+      "bee": 50.20173645019531,
+      "beetle": 50.20173645019531,
+      "brown_marmorated_stink_bug": 50.20173645019531,
+      "butterfly": 50.20173645019531,
+      "cabbage_looper": 50.20173645019531,
+      "citrus_canker": 50.20173645019531,
+      "colorado_potato_beetle": 50.20173645019531,
+      "corn_borer": 50.20173645019531,
+      "corn_earworm": 50.20173645019531,
+      "dragonfly": 50.20173645019531,
+      "fall_armyworm": 50.20173645019531,
+      "fly": 50.20173645019531,
+      "fruit_fly": 50.20173645019531,
+      "grasshopper": 50.20173645019531,
+      "ladybug": 50.20173645019531,
+      "mite": 50.20173645019531,
+      "mosquito": 50.20173645019531,
+      "spider": 50.20173645019531,
+      "spider_mite": 50.20173645019531,
+      "thrips": 50.20173645019531,
+      "tick": 50.20173645019531,
+      "tomato_hornworm": 50.20173645019531,
+      "wasp": 50.20173645019531,
+      "western_corn_rootworm": 50.20173645019531
+    },
+    "calibration": {
+      "method": "global_fallback",
+      "target_validation_precision": 0.95,
+      "global": {
+        "samples": 1043,
+        "accepted": 994,
+        "correct_accepted": 963,
+        "accepted_accuracy": 0.9688128772635815,
+        "coverage": 0.9530201342281879,
+        "useful_correct_fraction": 0.9232981783317353
+      },
+      "predicted_class": {
+        "samples": 1043,
+        "accepted": 994,
+        "correct_accepted": 963,
+        "accepted_accuracy": 0.9688128772635815,
+        "coverage": 0.9530201342281879,
+        "useful_correct_fraction": 0.9232981783317353
+      },
+      "selected": {
+        "samples": 1043,
+        "accepted": 994,
+        "correct_accepted": 963,
+        "accepted_accuracy": 0.9688128772635815,
+        "coverage": 0.9530201342281879,
+        "useful_correct_fraction": 0.9232981783317353
+      }
+    },
+    "model_sha256": "056c119a900b38dc3a7e679e4b036d0c2d67454475ae3b8972afdd24ef7c35c3",
+    "split_sha256": "7ba904a0e7a226fac0e643b6bdda3cc967100eb147fd42165b48f66adec36425"
+  },
+  "limitations": [
+    "Validation precision is empirical, not a guarantee",
+    "Single-object region labels are inherited from image annotations",
+    "Test results must not feed back into this profile"
+  ],
+  "rejection": {
+    "local_non_arachnid": 90,
+    "local_consensus": 80,
+    "whole_non_tick": 90,
+    "species_support": 90,
+    "detector_support": 0.98,
+    "selection_population": "Validation 332 COCO images + 135 non-tick folder-label proxies",
+    "note": "Recall-oriented practice profile; validation proxy detections 65 vs baseline60. Not a verified open-set classifier."
+  },
+  "detector": {
+    "model_sha256": "9e7a3a9b9cb32df87a37be71d85068f98a28d17bb61f828354534d4e95ed8b7c",
+    "bbox_only": true,
+    "input_min_size": 1024,
+    "input_max_size": 1200,
+    "score_threshold": 0.5,
+    "dedup_iou": 0.3,
+    "cascade_variant": "drop_in",
+    "validation_report_sha256": "a089e2880996066236c8148efc2e0344e50b167660ea504dbf86c75791d61b1d",
+    "status": "validated_development_candidate_requires_source_checks",
+    "limitations": [
+      "old v3 initialization saw some grouped val sources",
+      "folder negative labels are proxies",
+      "retained species model is not an open-set species classifier"
+    ]
+  }
+}

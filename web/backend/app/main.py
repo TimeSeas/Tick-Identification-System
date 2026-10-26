@@ -30,6 +30,21 @@ def verify_artifact(path, expected_hash):
         raise ValueError('模型或数据划分与校准配置不一致，请重新评估并校准')
 
 
+def configure_detector(detector, config):
+    """Reject unsupported geometry and apply the evaluated acceptance threshold."""
+    if not config:
+        return
+    from app.services.detector import DEDUP_IOU
+    if (config['input_min_size'],config['input_max_size'],config['dedup_iou'])!=(1024,1200,DEDUP_IOU):
+        raise ValueError('检测尺度或去重参数与当前实现不一致')
+    threshold=config['score_threshold']
+    if not 0 < threshold <= 1:
+        raise ValueError('检测门槛必须在(0,1]')
+    detector.CONFIDENCE=threshold
+    if config.get('bbox_only',False):
+        detector.model.roi_heads.mask_roi_pool=None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期：启动时加载全部模型（只加载一次，常驻内存），关闭时释放"""
@@ -61,8 +76,7 @@ async def lifespan(app: FastAPI):
         if profile.get('detector') and detector_hash != profile['detector']['model_sha256']:
             raise ValueError('检测权重与实验配置不一致')
         detector = Detector(settings.detector_path, tile=settings.detect_tile)
-        if profile.get('detector',{}).get('bbox_only',False):
-            detector.model.roi_heads.mask_roi_pool = None
+        configure_detector(detector,profile.get('detector'))
         classifier = SpeciesClassifier(
             settings.species_model_path, settings.species_split_json,
             input_size=settings.species_input_size,

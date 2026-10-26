@@ -1,5 +1,27 @@
 # 基于Mask R-CNN的蜱虫识别系统的设计与实现 Docker部署指南
 
+## 当前Codex分支版本（2026-10-26）
+
+当前本地Settings与Compose默认已改为：
+
+- 检测：`output/optimization_20261015/rebuild_20261024/detector_v3_finetune_run01/frozen_detector.pth`，SHA256 `9e7a3a9b9cb32df87a37be71d85068f98a28d17bb61f828354534d4e95ed8b7c`。
+- 配置：`configs/inference_detector_balanced.json`，SHA256 `6164cdf41a781fa3fcc43ebc5990ad460a238b3ff4efc6bd167298fa8a2e86d0`。检测门槛.3、1024/1200、IoU=.3；原28类448物种与昆虫模型/校准不变。
+- 默认变更在后端重启后生效，未替用户重启日常服务。独立验证端口8016已停止。真实CUDA HTTP、历史/版本及JPEG验证通过，单图0.806秒；Docker仅同步配置，未构建/实跑。
+
+完整效果及来源代价见[门槛核验](../experiments/detector_calibration_run01.md)。495开发验证的误报79→32、MAE .20745→.12766、召回87.91%→88.37%不能描述为独立测试。未知物种9/80错误确认仍未解决，部分来源检出有少量损失。
+
+本机原模型/数据存在时，可沿用原启动命令；不要下载或用其他同名权重代替。模型不随Git推送，他机必须取得精确权重并校验SHA。以下历史章节中的原v3路径与原配置只代表此前版本。
+
+本地回滚（在web/backend目录，重启服务）：
+
+```powershell
+$env:DETECTOR_PATH='../../output/det_v3/mask_rcnn_ticks_v3.pth'
+$env:INFERENCE_PROFILE_PATH='../../configs/inference_optimization.json'
+python -m uvicorn app.main:app --port 8000
+```
+
+恢复当前默认前，清除以上两项进程环境覆盖，再重启。Docker回滚需把Compose这两项环境变量改回`/app/models/det_v3/mask_rcnn_ticks_v3.pth`与`/app/config/inference_optimization.json`后重建容器；不要删除dbdata。`.5`候选配置`inference_detector_finetune.json`仅研究对照，不是当前默认；旧双头/逐框复核均未启用。
+
 > 2026-09-10 · 从零讲清：装什么、写什么、怎么跑、怎么维护、怎么用
 > 本文基于本项目实际文件（`web/docker-compose.yml` 等），与代码同步维护
 
@@ -143,11 +165,11 @@ curl "http://localhost:8080/api/v1/history?page=1&size=10"
 Compose与本地默认均使用v3检测和28类448蜱种分类，新增 `SPECIES_INPUT_SIZE=448`。昆虫粗分类使用 `/app/models/insect_classifier/model/insect_best.pth`，划分文件由 `../data/insects_split.json` 单文件只读挂载到 `/app/insects_split.json`。完整变量表与测试边界见 [实践报告与模型核验说明](../history/2026-10-15/practice_report_validation.md)。本轮未执行Docker镜像构建与容器端到端测试。
 
 
-## 2026-10-26 实验候选与默认边界
+## 2026-10-26切换前的验证记录（历史）
 
-本地与Compose默认继续原 `configs/inference_optimization.json`，检测v3及原28类448蜱种/昆虫权重。当前没有新候选获得整体验收许可，切换不能仅依据开发val/cal过门槛。
+本轮切换前，本地与Compose曾保留原 `configs/inference_optimization.json`、v3及原28类448蜱种/昆虫权重，避免仅依据开发val/cal过门槛就替换。当前默认已在本文开头列出。
 
-`configs/inference_recognition_rebuild.json`是存在性复核的研究配置，109图同源诊断出现额外漏识别，**不推荐日常使用**。新物种头也未采用。可选加载器支持独立存在性权重、模型SHA及清单校验，并在分析结果记录推理版本；这些接入代码不代表候选已部署。检测run01仍在训练，不覆盖原权重。
+`configs/inference_recognition_rebuild.json`是存在性复核的研究配置，109图同源诊断出现额外漏识别，**不推荐日常使用**。新物种头也未采用。可选加载器支持独立存在性权重、模型SHA及清单校验，并在分析结果记录推理版本；这些接入代码不代表候选已部署。检测run01之后因空mask失败，后续重训与微调另目录保留，不覆盖原权重。
 
 2026-10-26已完成默认配置真实HTTP冒烟：独立CPU服务端口8016，数据库`output/optimization_20261015/rebuild_20261024/service_smoke_run01.db`。健康、错误MIME、损坏图片、超过10MB拒绝、真实图推理、历史列表/详情与model_version一致性通过；拒绝请求未入库，成功1条。耗时28.72秒是CPU服务数据，不能作为GPU网页性能指标。产物`service_smoke_run01/report.json`、`analysis.json`和`result.jpg`，日志`logs/service_smoke_run01.log`。未操作原数据库；候选模型HTTP及Docker尚未验证。
 

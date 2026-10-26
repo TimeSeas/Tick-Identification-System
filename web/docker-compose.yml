@@ -7,12 +7,12 @@ services:
     environment:
       # 容器内路径由卷挂载决定，用环境变量覆盖 config.py 默认值
       - DB_URL=sqlite:////app/db/data.db
-      - DETECTOR_PATH=/app/models/det_v3/mask_rcnn_ticks_v3.pth
+      - DETECTOR_PATH=/app/models/optimization_20261015/rebuild_20261024/detector_v3_finetune_run01/frozen_detector.pth
       - SPECIES_MODEL_PATH=/app/models/tick_species_clean_448/model/tick_species_best.pth
       - THRESHOLDS_PATH=/app/models/tick_species_clean_448/thresholds.csv
       - SPECIES_SPLIT_JSON=/app/data/split_clean.json
       - SPECIES_INPUT_SIZE=448
-      - INFERENCE_PROFILE_PATH=/app/config/inference_optimization.json
+      - INFERENCE_PROFILE_PATH=/app/config/inference_detector_balanced.json
       - RECOGNITION_MODEL_PATH=/app/models/optimization_20261015/rebuild_20261024/recognition_run01/frozen_best.pth
       - INSECT_MODEL_PATH=/app/models/insect_classifier/model/insect_best.pth
       - INSECT_SPLIT_JSON=/app/insects_split.json

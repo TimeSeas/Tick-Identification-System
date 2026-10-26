@@ -29,9 +29,10 @@ from evaluate_optimized_cascade import match_boxes
 
 class CachedDetector:
     tile = 2
+    CONFIDENCE = .5
 
     def detect(self,rgb,tile=None):
-        return copy.deepcopy([d for d in self.row['full' if tile==1 else 'tiles'] if d['score']>=.5])
+        return copy.deepcopy([d for d in self.row['full' if tile==1 else 'tiles'] if d['score']>=self.CONFIDENCE])
 
 
 def read_image(row):

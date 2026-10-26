@@ -47,18 +47,31 @@ def summarize(records,name,known):
     return result
 
 
+def summarize_binary(records,name):
+    tp=fn=fp=tn=0
+    for record in records:
+        detected=bool(record[name]['detections']); positive=record['binary_label']==1
+        tp+=detected and positive; fn+=not detected and positive
+        fp+=detected and not positive; tn+=not detected and not positive
+    return dict(tp=tp,fn=fn,fp=fp,tn=tn,presence_recall=tp/(tp+fn) if tp+fn else None,
+        proxy_fpr=fp/(fp+tn) if fp+tn else None)
+
+
 @torch.inference_mode()
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     source=p.add_mutually_exclusive_group(required=True)
     source.add_argument('--species-split',type=Path)
     source.add_argument('--coverage-manifest',type=Path)
+    source.add_argument('--binary-regression',type=Path)
     p.add_argument('--new-weights',type=Path,required=True)
     p.add_argument('--profile',type=Path,required=True)
+    p.add_argument('--proposal-weights',type=Path,help='Optional original-proposal ROI verification experiment')
     p.add_argument('--out',type=Path,required=True)
     args=p.parse_args(); torch.set_num_threads(4)
-    known=bool(args.species_split); manifest=args.species_split or args.coverage_manifest
-    data=json.loads(manifest.read_text('utf-8')); rows=data['val'] if known else data['rows']
+    known=bool(args.species_split); binary=bool(args.binary_regression)
+    manifest=args.species_split or args.coverage_manifest or args.binary_regression
+    data=json.loads(manifest.read_text('utf-8')); rows=data['val'] if known else data if binary else data['rows']
     if not rows or len(rows)!=len({r['path'] for r in rows}):
         raise ValueError('Require nonempty unique image rows')
     old_weights=ROOT/'output/det_v3/mask_rcnn_ticks_v3.pth'
@@ -75,12 +88,15 @@ def main():
             raise ValueError('Retain original classifiers, views and calibration for this comparison')
     if original['species']['model_sha256']!=digest(species_path) or original['insect']['model_sha256']!=digest(insect_path):
         raise ValueError('Classifier artifact identity mismatch')
-    metadata=dict(mode='known_species_val' if known else 'unsupported_positive_coverage',
+    metadata=dict(mode='known_species_val' if known else 'viewed_binary_regression' if binary else 'unsupported_positive_coverage',
         manifest_sha256=digest(manifest),old_weights_sha256=digest(old_weights),new_weights_sha256=digest(args.new_weights),
         old_profile_sha256=digest(old_profile_path),new_profile_sha256=digest(args.profile),
         evaluator_sha256=digest(Path(__file__)),pipeline_sha256=digest(ROOT/'web/backend/app/services/pipeline.py'),
         service_sources={name:digest(ROOT/'web/backend/app/services'/name)
             for name in ('detector.py','classifier.py','insect_classifier.py','classification_views.py')})
+    if args.proposal_weights:
+        metadata.update(proposal_weights_sha256=digest(args.proposal_weights),
+            verifier_source_sha256=digest(ROOT/'web/backend/app/services/verified_detector.py'))
     args.out.mkdir(parents=True,exist_ok=True); metadata_path=args.out/'metadata.json'
     if metadata_path.exists() and json.loads(metadata_path.read_text('utf-8'))!=metadata:
         raise ValueError('Changed inputs; preserve old evidence and use a new output directory')
@@ -89,12 +105,21 @@ def main():
     insect=InsectClassifier(str(insect_path),str(ROOT/'data/insects_split.json'),view_mode='center_full')
     pipelines={}
     for name,weights,config in (('old',old_weights,original),('new',args.new_weights,profile)):
-        detector=Detector(str(weights),tile=2); detector.model.roi_heads.mask_roi_pool=None
+        if name=='new' and args.proposal_weights:
+            from app.services.verified_detector import VerifiedDetector
+            detector=VerifiedDetector(str(args.proposal_weights),str(weights),tile=2)
+        else:
+            detector=Detector(str(weights),tile=2)
+        detector.model.roi_heads.mask_roi_pool=None
+        if name=='new':
+            detector.CONFIDENCE=profile['detector']['score_threshold']
         pipelines[name]=Pipeline(insect,detector,species,str(ROOT/'output/tick_species_clean_448/thresholds.csv'),{},config)
     if known and not {r['label'] for r in rows}<=set(species.classes):
         raise ValueError('Known-species labels outside retained model classes')
-    if not known and any(r['label'] in species.classes for r in rows):
+    if not known and not binary and any(r['label'] in species.classes for r in rows):
         raise ValueError('Coverage manifest must contain unsupported species')
+    if binary and any(r['binary_label'] not in (0,1) for r in rows):
+        raise ValueError('Binary regression requires explicit positive/negative image labels')
     trace_path=args.out/'predictions.json'; records=json.loads(trace_path.read_text('utf-8')) if trace_path.exists() else []
     if len(records)>len(rows) or any(r['path']!=row['path'] for r,row in zip(records,rows)):
         raise ValueError('Trace order changed')
@@ -106,6 +131,8 @@ def main():
         with Image.open(ROOT/row['path']) as source_image:
             image=ImageOps.exif_transpose(source_image).convert('RGB')
         record=dict(path=row['path'],label=row['label'])
+        if binary:
+            record['binary_label']=row['binary_label']
         for name,pipeline in pipelines.items():
             with patch('app.services.pipeline.load_rgb_image',return_value=image):
                 result=pipeline.analyze(b'')
@@ -114,13 +141,16 @@ def main():
         if (index+1)%10==0:
             save(trace_path,records); print(f'{index+1}/{len(rows)}',flush=True)
     save(trace_path,records)
-    report=dict(metadata=metadata,old=summarize(records,'old',known),new=summarize(records,'new',known),
+    summarize_results=(lambda records,name:summarize_binary(records,name)) if binary else (lambda records,name:summarize(records,name,known))
+    report=dict(metadata=metadata,old=summarize_results(records,'old'),new=summarize_results(records,'new'),
         limitations=['positive folder image labels, not independently adjudicated per-box or count truth',
             'known-species val is development evidence; old models saw some sources',
             'correct candidate and wrong confirmation may coexist in one image; these are coverage counts, not per-box accuracy',
             'unsupported species have no correct class among the 28 deployed classes',
             'identical EXIF-normalized pixels, upload validation bypassed equally',
             'unsupported coverage must not be used to choose checkpoints or thresholds'])
+    if binary:
+        report['limitations'].append('Previously viewed same-source binary regression, not independent test or species/count truth')
     save(args.out/'report.json',report)
     print(json.dumps({name:{k:v for k,v in report[name].items() if k!='by_class'} for name in ('old','new')}),flush=True)
 

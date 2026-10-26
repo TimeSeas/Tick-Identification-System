@@ -2,14 +2,25 @@
 import argparse
 import base64
 import hashlib
+import io
 import json
 from pathlib import Path
 import sqlite3
 import time
 import urllib.request
 import uuid
+from PIL import Image
 
 ROOT=Path(__file__).resolve().parents[1]
+
+
+def decode_result_image(value):
+    if not value.startswith('data:image/jpeg;base64,'):
+        raise ValueError('Expected the service JPEG data URI')
+    decoded=base64.b64decode(value.split(',',1)[1],validate=True)
+    with Image.open(io.BytesIO(decoded)) as image:
+        image.verify()
+    return decoded
 
 
 def request(base,path,content=None,mime=None):
@@ -33,6 +44,7 @@ def main():
     p.add_argument('--out',type=Path,required=True)
     p.add_argument('--cases',type=Path,required=True)
     p.add_argument('--expected-detector',type=Path,default=ROOT/'output/det_v3/mask_rcnn_ticks_v3.pth')
+    p.add_argument('--device-label',choices=('cpu','cuda','unspecified'),default='unspecified')
     args=p.parse_args()
     database=args.database.resolve()
     if not database.is_relative_to((ROOT/'output/optimization_20261015/rebuild_20261024').resolve()):
@@ -64,12 +76,13 @@ def main():
         assert conn.execute('select count(*) from analysis_records').fetchone()[0]==1
     args.out.mkdir(parents=True)
     (args.out/'analysis.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),'utf-8')
-    (args.out/'result.jpg').write_bytes(base64.b64decode(analyzed['result_image_base64']))
+    (args.out/'result.jpg').write_bytes(decode_result_image(analyzed['result_image_base64']))
     report=dict(health=health,invalid_mime=wrong_type,invalid_image=broken_image,
         too_large=too_large,input_path=row['path'],input_sha256=row['sha256'],
         request_seconds=elapsed,history_count=history['total'],database=str(database),
         detections=len(analyzed['detections']),model_version=analyzed['model_version'],
-        note='Actual HTTP request, CPU validation service; not GPU performance or accuracy evaluation')
+        device_label=args.device_label,
+        note='Actual HTTP single-image request; not a controlled speed comparison or accuracy evaluation')
     (args.out/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),'utf-8')
     print(json.dumps(report,ensure_ascii=False))
 

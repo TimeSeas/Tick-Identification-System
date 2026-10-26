@@ -2,6 +2,8 @@
 
 本目录仅对应 `codex/practice-report-frontend`，遵循根AGENTS.md和用户对该分支的全程开发授权。用户允许架构修改、重新训练和同步文档；无需对已授权优化重复请求同意。不得修改或合并主分支，不使用Claude Code。
 
+2026-10-26本分支当前默认为微调第2轮+`configs/inference_detector_balanced.json`（检测.3），原v3用于回滚；根AGENTS概述与原文档仍描述历史基线，当前部署以本目录CONTEXT和operations/deployment.md为准。不要根据历史mAP给新权重沿用指标。
+
 ## 版本和原文隔离
 
 - 本分支的需求、设计、实验、运行说明和agent上下文只在本目录维护。原项目README、docs及论文/毕业设计材料保留原用途；根文件只作必要路由，不追加分支实验结果。

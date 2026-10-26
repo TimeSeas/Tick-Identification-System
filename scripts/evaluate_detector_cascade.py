@@ -28,6 +28,21 @@ def save(path,value):
     temporary.write_text(json.dumps(value,ensure_ascii=False,indent=2),'utf-8'); temporary.replace(path)
 
 
+def proxy_routing(rows,records,key):
+    count=correct=confirmed_correct=0
+    for row,record in zip(rows,records):
+        if not row.get('negative_label'):
+            continue
+        result=record[key]; count+=1
+        matches=result['slug']==row['negative_label']
+        correct+=matches
+        confirmed_correct+=matches and result.get('status')=='confirmed'
+    return dict(proxy_images=count,correct_fallback_candidate_images=correct,
+        correct_fallback_confirmed_images=confirmed_correct,
+        correct_candidate_rate=correct/count if count else None,
+        correct_confirmed_rate=confirmed_correct/count if count else None)
+
+
 @torch.inference_mode()
 def main():
     p=argparse.ArgumentParser(description=__doc__)
@@ -35,6 +50,10 @@ def main():
     p.add_argument('--split',type=Path,required=True)
     p.add_argument('--baseline-traces',type=Path,required=True)
     p.add_argument('--out',type=Path,required=True)
+    p.add_argument('--proposal-weights',type=Path,help='Optional v3 proposals verified by retrained ROI head')
+    p.add_argument('--score-threshold',type=float,choices=(.3,.4,.5),default=.5)
+    p.add_argument('--variants',nargs='+',choices=('drop_in','regional_only','detector_only'),
+        default=['drop_in','regional_only','detector_only'])
     args=p.parse_args(); torch.set_num_threads(4)
     manifest=json.loads(args.split.read_text('utf-8')); rows=manifest['val']
     baseline=json.loads(args.baseline_traces.read_text('utf-8'))
@@ -57,6 +76,11 @@ def main():
         detector_sha256=digest(ROOT/'web/backend/app/services/detector.py'),subset='val')
     metadata['classification_sources']={name:digest(ROOT/'web/backend/app/services'/name)
         for name in ('classifier.py','insect_classifier.py','classification_views.py')}
+    metadata.update(score_threshold=args.score_threshold,variants=args.variants)
+    metadata['cache_helper_sha256']=digest(ROOT/'scripts/evaluate_recognition_cascade.py')
+    if args.proposal_weights:
+        metadata.update(proposal_weights_sha256=digest(args.proposal_weights),
+            verifier_source_sha256=digest(ROOT/'web/backend/app/services/verified_detector.py'))
     for row in rows:
         if digest(ROOT/row['path'])!=row['sha256']:
             raise ValueError('Frozen image changed: '+row['path'])
@@ -68,7 +92,13 @@ def main():
     cache_path=args.out/'detections.json'
     cache=json.loads(cache_path.read_text('utf-8')) if cache_path.exists() else {}
     if any(r['path'] not in cache for r in rows):
-        detector=Detector(str(args.weights),tile=2); detector.model.roi_heads.mask_roi_pool=None
+        if args.proposal_weights:
+            from app.services.verified_detector import VerifiedDetector
+            detector=VerifiedDetector(str(args.proposal_weights),str(args.weights),tile=2)
+        else:
+            detector=Detector(str(args.weights),tile=2)
+        detector.model.roi_heads.mask_roi_pool=None
+        detector.CONFIDENCE=args.score_threshold
         for index,row in enumerate(rows):
             if row['path'] in cache:
                 continue
@@ -84,9 +114,12 @@ def main():
     species=SpeciesClassifier(str(species_path),str(ROOT/'data/tick_species/split_clean.json'),448,'center_full')
     insect=InsectClassifier(str(insect_path),str(ROOT/'data/insects_split.json'),view_mode='center_full')
     cached=CachedDetector(); original=json.loads(profile_path.read_text('utf-8'))
+    cached.CONFIDENCE=args.score_threshold
+    baseline_fallback=Pipeline(insect,cached,species,str(ROOT/'output/tick_species_clean_448/thresholds.csv'),{},original)
+    old_fallbacks={}
     reports={}
     old_result=summarize(rows,[dict(old=old[r['path']]) for r in rows],'old')
-    for name in ('drop_in','regional_only','detector_only'):
+    for name in args.variants:
         profile=copy.deepcopy(original)
         if name!='drop_in':
             profile.setdefault('rejection',{})['whole_non_tick']=101
@@ -104,15 +137,23 @@ def main():
             image=read_image(row); cached.row=cache[row['path']]
             with patch('app.services.pipeline.load_rgb_image',return_value=image):
                 result=pipeline.analyze(b'')
-            records.append(dict(path=row['path'],old=old[row['path']],new=result['detections'],insect=result['insect']))
+            record=dict(path=row['path'],old=old[row['path']],new=result['detections'],insect=result['insect'])
+            if row.get('negative_label'):
+                if row['path'] not in old_fallbacks:
+                    old_fallbacks[row['path']]=(dict(slug='tick') if old[row['path']]
+                        else baseline_fallback._fallback(np.array(image))['insect'])
+                record['old_insect']=old_fallbacks[row['path']]
+            records.append(record)
             if (index+1)%20==0:
                 save(trace_path,records); print(f'{name} {index+1}/{len(rows)}',flush=True)
         save(trace_path,records)
         current=summarize(rows,[dict(old=r['new']) for r in records],'old')
-        reports[name]=dict(old=old_result,new=current,gates=dict(
+        reports[name]=dict(profile_sha256=digest(args.out/(name+'_profile.json')),old=old_result,new=current,gates=dict(
             recall_loss_at_most_2pp=current['recall']>=old_result['recall']-.02,
             relative_proxy_fp_reduction_30pct=current['proxy_positive_rate']<=old_result['proxy_positive_rate']*.7,
             count_mae_not_worse=current['count_mae']<=old_result['count_mae']))
+        reports[name]['folder_label_routing']=dict(old=proxy_routing(rows,records,'old_insect'),
+            new=proxy_routing(rows,records,'insect'))
         print(json.dumps({name:reports[name]},ensure_ascii=False),flush=True)
     save(args.out/'report.json',dict(metadata=metadata,variants=reports,limitations=[
         'development val used for policy selection, not independent final test',
