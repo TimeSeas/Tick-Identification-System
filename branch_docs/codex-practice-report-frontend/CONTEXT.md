@@ -1,59 +1,41 @@
 # 当前分支上下文
 
-更新日期：2026-10-26。当前实现提交`8424cc1d`及后续空mask隔离修订；原需求起点`dbf87bc1`，文档隔离`504785dd`。主分支不改动。当前任务仍在执行，文档隔离是新增维护要求，不代表识别重建已经结束。
+更新2026-10-26。仅在codex/practice-report-frontend工作；主分支保持2029625d3752c14cdd6f268431eb0323e88c2bb7，不修改、不合并。最新已推送代码c8fec462，后续v3微调与完整模型身份变更待提交。用户原有dirty文件不暂存。
 
-## 当前用户需求
+## 用户目标与当前计划
 
-用户对蜱虫检测、蜱种及其他昆虫识别均不满意，要求实际照片上明显改善；允许在本分支大改、调整架构和重新训练。仅使用项目已有数据。先需求和计划，再修改；不能仅靠显示待确认或阈值掩盖错误。分支文档单独维护，保留可接手的上下文与历史。
+整体提高蜱虫数量/定位、蜱种和昆虫识别；允许架构调整和重新训练，只使用项目已有数据，要求肉眼可见改善。优化独立于实践报告。分支文档只维护本目录，原README/docs/论文材料保留基线。
 
-原需求：[识别效果重建](plans/recognition_rebuild_20261024.md)。当前执行：[来源差异与检测重训](plans/recognition_policy_followup_20261026.md)。
+原需求：[识别重建计划](plans/recognition_rebuild_20261024.md)。当前执行：[来源差异与检测微调](plans/recognition_policy_followup_20261026.md)。用户不需重复授权已批准的分支开发。
 
-## 已确认并完成
+## 当前GPU任务
 
-- 完整只读审计18497个既有图片路径：昆虫存在239组字节重复、20组类别冲突；蜱种有129个照片组跨旧划分，106个已知观测跨划分；旧蜱种test中54张也在旧检测train。不能再把旧实验当作无泄漏的端到端证明。
-- 发现检测增强只翻图不翻真值的错误；现役v3受影响程度未知。训练集空标注42张不等于42张可靠真负。
-- 需求和验收目标已先写入计划，再开始训练代码和数据准备。
-- 新分组清单已生成：species train/val/calibration为2889/486/492；insect为6074/1010/1010，三组均28类；detector为2970/500/489。全任务group/SHA边界断言通过，原数据不删除。
-- 检测train含1124张有框、32张原空标注和1814张文件夹来源非tick代理；val/calibration分别含307/296张代理。代理标签不等同于逐图人工审核真值。
-- archive2本地同源二分类对照筛后109图（tick55、mite54）；旧来源148条无法完整筛查，不能声称完全未见或开放环境独立验收。
-- 本目录已集中保存分支计划、历史和运行说明；根README/CLAUDE/部署指南仅保留参考版本及分支入口。
+**detector_v3_finetune_run01，训练中，会话86243**。日志output/optimization_20261015/rebuild_20261024/logs/detector_v3_finetune_run01.log；检查点同根detector_v3_finetune_run01/。原v3显式SHA绑定，小学习率.0003，1024/1200、batch1/accumulate2、workers2、AMP，先完整3轮。训练源码SHA a5f44e56d1dbafca2086b0628a0cab82b80477d0411f68e7a2b8cd5070c61a43；运行中不能改训练器、安全辅助、几何增强、服务detector或清单。
 
-## 进行中与文件归属
+CPU实际v3权重严格加载与54项回归通过，窄范围独立审查无新增P1/P2。GPU必须串行，不在训练中启动评估/其他训练。Python C:/Users/a/.conda/envs/tick_detection/python.exe；RTX4060 Laptop8GB；命令设置PYTHONDONTWRITEBYTECODE=1、PYTHONIOENCODING=utf-8。
 
-| 负责人 | 文件/工作 | 状态 |
-|---|---|---|
-| root | 当前全部训练、区域准备、验证与文档 | 分类run01候选整体未通过；检测run01空mask失败；run02正式训练中 |
-| 历史agent产物 | 检测训练器与数据清单构建器 | 已接收；原agent当前不在线，继续工作不能依赖旧agent状态 |
+## 已完成与失败证据
 
-## 当前模型与运行状态
+- 数据审计18497图片路径，存在跨集合照片/观测、跨任务重用和冲突标签。旧模型已看过部分新val/cal，所有旧新比较明确诊断局限。原数据、权重、划分不覆盖。
+- 检测增强已同步图/框/mask；新监督清单data/detector_supervision_split_v2.json为2937/495/484，SHA aee2baf8b3c0b7e9b1fd110501e346f62b638cd7f7d5f30e5185690250e13013。隔离42未经核验空图及1个2×2三角形空栅格mask的整张训练图，val/cal不变。完整3432张train/val已实际Dataset预检通过；1814训练非tick仅来源代理，不是人工逐图真负。
+- 分类recognition_run01完成13轮，第14轮非有限梯度失败，best第12轮冻结。新species头不采用。存在性det=.5/presence=.95候选虽开发val/cal过门槛，但109同源图tick漏识别2→6，拒绝默认切换；低分来源门槛+区域coarse guard仍误报79→77，失败保留。
+- 检测detector_run01首轮batch2760后遇空mask失败，无完成epoch/正式检查点；detector_run02通用初始化完整3轮，最佳第3轮recall=.75814、precision=.75115、计数MAE=.32979、代理误报49/307。旧v3全图.88372/.84444/.20213/252。召回/计数未过门槛，不部署；只3轮不能推断充分收敛无效。源码快照存detector_run02/source_snapshot，当前源码已改变，不能静默恢复run02。
+- 63分类与39定位案例在训练/评估前冻结；组件6页、级联10页、检测每轮10页对照包含失败。第1轮分尺度诊断在data/detector_epoch01_scale_diagnostic.json，多目标漏检严重，后续须单列计数而非只看平均指标。
+- 默认配置继续configs/inference_optimization.json、原v3与原分类权重。configs/inference_recognition_rebuild.json仅失败研究候选，不推荐日常启用。新物种头/存在性头未默认接入。
+- profile构建已绑定当前baseline文件、模型和源清单，防止旧报告错套新配置。推理结果完整记录各模型SHA；实验profile可绑定detector.model_sha256，bbox_only只关闭不使用的mask回贴，保留Mask R-CNN权重。
+- 独立CPU服务HTTP已测2轮：健康/错误MIME/损坏图片/10MB超限拒绝、真实图推理、历史和版本一致性通过。service_smoke_run02输出完整模型SHA，18.40秒是CPU数据，不能视为GPU性能提升。8016验证服务已停止，独立SQLite保存在output，原data.db未操作。
 
-默认配置仍为原inference_optimization.json及v3/原分类权重，未替换默认模型。当前实现提交153c68a3，之后策略与检测安全修订待提交。主分支保持2029625d3752c14cdd6f268431eb0323e88c2bb7。
+## 已冻结的补充来源
 
-分类run01完成13轮，第14轮非有限梯度失败；最佳第12轮冻结。新物种头弱于旧头，不部署。det=.5/presence=.95候选在开发val/cal减少误报，但109同源诊断tick漏识别2增至6（mite误报32降11），因此不默认启用。109图已查看，后续仅诊断，不再称未见测试。分来源低门槛+区域coarse guard在val召回.88372、计数MAE.20213、代理误报77/307；旧模型.87907/.20745/79，仍未达误报门槛。不能把规则调整当成整体成功。
+data/unsupported_tick_challenge_v2.json，80个不支持物种各1图，SHA de4e168d08c6bc72b8838e013211c82580160ffdfeb4d3d245bf594931b18080。筛查全部历史split*.json、昆虫/COCO划分及已查看109图的SHA、已知photo/observation组和dHash≤4；190历史引用缺失/不可解码，不能证明完全独立。尚未模型预测，只作冻结策略后的正例覆盖，另查是否错误确认成已知蜱种，不计数量/定位/28类准确率。v1名单遗漏旧split，未预测且已停用，保留。
 
-检测run01因一个2×2目标栅格mask为空失败，未完成epoch。训练整图隔离后，run02已启动，先完整3轮，详见experiments/detector_run02.md。已隔离42张未经核验COCO空图及1张空mask训练图，监督清单run02 train2937/val495/cal484；包含1814张训练代理负例，仍非逐图人工真值。从通用COCO权重初始化，1024/1200，batch1/accumulate2/workers2/AMP，服务IoU=.3去重验证。52项CPU回归通过，全量3432张train/val通过实际Dataset预检。训练中不修改相关源码和清单。
+## 评估入口与明确下一步
 
-本机ML环境：C:/Users/a/.conda/envs/tick_detection/python.exe，RTX4060 Laptop 8GB，GPU串行。模型大文件/原图/数据库不推送。训练启动和完成分别登记，不以后台任务代替完成。
+1. 等v3微调3轮完整完成，检查epochs.jsonl、best/last、失败与SHA，更新[微调登记](experiments/detector_v3_finetune_run01.md)。原v3保留，尚无新模型达到整体验收。
+2. compare_detector_rebuild.py读取每轮预测与旧全图缓存，展示全部39冻结例；新float框对旧服务int框只是诊断，最终服务口径另测。
+3. GPU空闲后evaluate_detector_cascade.py用实际Detector整数化/去重/空检出切块验证完整495 val，预先限定drop_in、regional_only、detector_only三策略。输入原baseline traces在cascade_val_run01_det05/traces.json；按召回/计数/代理误报共同选策略。保留旧蜱种模型，不能伪造逐框物种GT。
+4. 若通过，冻结profile并绑定候选detector SHA。evaluate_detector_labelled_images.py对species_split.json的486 val作图片级正确候选/确认诊断，再对80补充正例查覆盖；不能根据80结果反复选参。原109/cal已查看，只能开发或回顾。
+5. 候选通过再启动独立SQLite真实HTTP，smoke_recognition_service.py传--expected-detector验证实际版本；测GPU请求时间，必要时页面实测。没有通过就不换默认，继续按证据修改。
+6. 所有文档只在本目录更新，逐路径提交推送授权分支。用户dirty .gitignore/.learnings、data.db、开发进程/web开发.md、毕业设计规划及任务书输出不提交。不要git add .。
 
-## 证据入口
-
-- 原始审计：`output/optimization_20261015/rebuild_20261024/data_audit.json`、`training_audit.md`。
-- 清单及摘要：同目录下 `data/`，包含 `species_split.json`、`insect_split.json`、`detector_split.json`、同源对照和隔离原因。
-- 旧版本：[2026-10-15归档](history/2026-10-15/README.md)。数据与模型大文件不提交Git。
-
-## 明确下一步
-
-1. 完成detector_run02首阶段3轮完整训练，保存每轮预测与检查点，按val选择，原v3不覆盖。
-2. 比较召回、定位计数、代理误报，生成训练前冻结39定位案例；物种头继续旧模型。只有证据支持才改默认。
-3. 新的最终来源验收应排除本轮train/val/cal及已查看109组，若现有数据不足明确限制，不反复测试选参。
-4. 完成隔离数据库HTTP验证、源代码复核，更新本目录上下文/实验/历史，逐路径提交并推送授权分支，主分支不改不合并。
-
-尚未达到整体肉眼改善目标，任务继续。
-
-## 待解决与边界
-
-重复和来源筛查只能覆盖已知元数据；同源109图并非完全独立的真实用户照片。未复核的负例、观测标签冲突和未知物种仍限制效果。现有审计并未证明所有近重复已消除；训练/选择日志和结果必须保留该边界。
-
-运行补充：run02 GPU会话46407，logs/detector_run02.log。默认服务CPU HTTP已通过（独立SQLite、端口8016已停止），见operations/deployment.md。8424cc1d已成功推送远端；后续空mask隔离/审查修复待提交。
-
-补充80物种正例冻结：data/unsupported_tick_challenge_v2.json（SHA de4e168d08c6bc72b8838e013211c82580160ffdfeb4d3d245bf594931b18080），最终仅正例存在性覆盖检查；190个历史引用不可完全筛查，不能称完全独立。v1名单未用于预测且已停用。
+全部大文件根output/optimization_20261015/rebuild_20261024/为Git忽略目录，原图/数据库/模型不推送。当前尚未完成整体肉眼改善目标，不以训练启动或单项误报下降作为完成。

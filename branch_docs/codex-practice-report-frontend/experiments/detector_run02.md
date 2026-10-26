@@ -23,3 +23,7 @@ python src/train/train_detector_rebuild.py --split output/optimization_20261015/
 模型预测前冻结80个现有本地、当前28类之外的物种各1图，data/unsupported_tick_challenge_v2.json，SHA256 de4e168d08c6bc72b8838e013211c82580160ffdfeb4d3d245bf594931b18080。筛查全部已知历史split*.json、当前昆虫/COCO各划分和已查看109图，使用SHA、已知photo/observation组与dHash≤4；不是仅排除当前28类训练清单。190个历史引用缺失/不可解码，不能证明完全独立；名单保存具体路径。文件夹物种标签未经逐图独立裁定。此正例集仅查“是否识出蜱虫”，不能算数量/定位/蜱种准确率或误报率；模型/策略冻结后再跑，不据其结果选参。
 
 v1名单只筛当前clean分类来源，遗漏更早历史split，未进行模型预测，已停用并保留，不能与v2混用；首次参考筛查遇截断图片失败日志也保留，修订后记录不可解码而非强制读截断数据。最终使用v2，原日志位于logs/freeze_unsupported_tick_challenge_v3.log。
+
+## 首阶段结束
+
+完整完成3轮，无AMP跳过，最优第3轮recall=.75814、precision=.75115、计数MAE=.32979、代理误报49/307，未通过召回/计数门槛，不部署。epochs.jsonl、每轮预测/检查点、失败目录及源码快照保留。第3轮39例完整对照在detector_comparison_epoch03/。best_weights.pth SHA256：`269087fe9ee39fc4ab8d7c6a2769bb17da029c8220d0277d5a68e34017e0fec4`。下一候选从v3小学习率微调，另记实验，不宣称通用初始化充分收敛无效。

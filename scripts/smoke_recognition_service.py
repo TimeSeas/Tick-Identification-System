@@ -32,6 +32,7 @@ def main():
     p.add_argument('--database',type=Path,required=True)
     p.add_argument('--out',type=Path,required=True)
     p.add_argument('--cases',type=Path,required=True)
+    p.add_argument('--expected-detector',type=Path,default=ROOT/'output/det_v3/mask_rcnn_ticks_v3.pth')
     args=p.parse_args()
     database=args.database.resolve()
     if not database.is_relative_to((ROOT/'output/optimization_20261015/rebuild_20261024').resolve()):
@@ -53,6 +54,8 @@ def main():
     started=time.perf_counter(); result=upload(args.base,data,'image/jpeg'); elapsed=time.perf_counter()-started
     assert result['code']==200
     analyzed=result['data']; assert analyzed['model_version']['profile_sha256']
+    assert analyzed['model_version']['detector_model_sha256']==hashlib.sha256(args.expected_detector.read_bytes()).hexdigest()
+    assert analyzed['model_version']['species_model_sha256'] and analyzed['model_version']['insect_model_sha256']
     assert analyzed['result_image_base64'] and analyzed['request_id']
     history=request(args.base,'/api/v1/history')['data']; assert history['total']==1
     detail=request(args.base,f"/api/v1/history/{history['items'][0]['id']}")['data']

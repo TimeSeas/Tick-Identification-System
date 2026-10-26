@@ -48,6 +48,12 @@ def write_json(path, value):
     temporary.replace(path)
 
 
+def load_warm_start(model,path,expected_hash):
+    if file_sha256(path)!=expected_hash:
+        raise ValueError('Warm-start checkpoint SHA does not match the explicit expected artifact')
+    model.load_state_dict(torch.load(path,map_location='cpu',weights_only=True),strict=True)
+
+
 def validate_split(split):
     """Reject path/group overlap before loading any training or validation image."""
     seen_groups, seen_paths = {}, {}
@@ -287,11 +293,17 @@ def parse_args(argv=None):
     parser.add_argument('--negative-penalty', type=float, default=.25,
                         help='Best selection: val F1 minus this coefficient times proxy positive rate')
     parser.add_argument('--resume', type=Path)
+    parser.add_argument('--warm-start',type=Path,
+                        help='Explicit deployed task weights; resulting val is development evidence, not unseen evaluation')
+    parser.add_argument('--expected-warm-start-sha256',
+                        help='Required exact source checkpoint identity when warm-starting')
     args = parser.parse_args(argv)
     if min(args.epochs, args.batch_size, args.accumulate) < 1 or args.max_steps < 0 or args.workers < 0:
         parser.error('epochs/batch-size/accumulate must be positive; max-steps/workers nonnegative')
     if args.lr <= 0 or args.negative_penalty < 0:
         parser.error('lr must be positive and negative-penalty nonnegative')
+    if bool(args.warm_start)!=bool(args.expected_warm_start_sha256):
+        parser.error('--warm-start and --expected-warm-start-sha256 must be supplied together')
     return args
 
 
@@ -315,6 +327,10 @@ def main(argv=None):
                   trainer_sha256=file_sha256(Path(__file__)),
                   training_safety_sha256=file_sha256(Path(__file__).with_name('training_safety.py')),
                   joint_transform_sha256=file_sha256(Path(__file__).with_name('train_torchvision.py')))
+    config.update(warm_start_sha256=file_sha256(args.warm_start) if args.warm_start else None,
+                  initialization='deployed_task_warmstart_seen_some_val_sources' if args.warm_start else 'generic_coco')
+    if args.warm_start and config['warm_start_sha256']!=args.expected_warm_start_sha256:
+        raise ValueError('Warm-start artifact differs from explicit expected SHA')
     # COCO cache identity prevents accidentally passing the deployed two-class v3.
     if config['pretrained_sha256'] != 'bf2d0c1efbc936eeee2bc95a48e80ebc86b891f61b0106485937fc29f9315fc0':
         raise ValueError('Expected the verified torchvision COCO pretrained cache, not a tick checkpoint')
@@ -322,6 +338,8 @@ def main(argv=None):
     if not args.resume and any(args.out.iterdir()):
         raise ValueError('--out must be empty for a new experiment; use --resume explicitly')
     model = build_model(args.pretrained, args.freeze_low_stages).to(device)
+    if args.warm_start:
+        load_warm_start(model,args.warm_start,args.expected_warm_start_sha256)
     optimizer = torch.optim.SGD([p for p in model.parameters() if p.requires_grad],
                                 lr=args.lr, momentum=.9, weight_decay=.0005)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=.1)
@@ -344,6 +362,9 @@ def main(argv=None):
                     'training_safety_sha256'):
             if prior_config[key] != config[key]:
                 raise ValueError(f'Resume configuration mismatch: {key}')
+        for key in ('warm_start_sha256','initialization'):
+            if prior_config[key]!=config[key]:
+                raise ValueError(f'Resume initialization mismatch: {key}')
         if checkpoint['partial']:
             raise ValueError('Partial pilot checkpoints cannot silently resume as full training')
         model.load_state_dict(checkpoint['model'])

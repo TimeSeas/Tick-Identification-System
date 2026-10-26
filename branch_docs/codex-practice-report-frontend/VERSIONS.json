@@ -66,8 +66,8 @@
     }
   ],
   "recognition_rebuild": {
-    "code_checkpoint": "8424cc1d",
-    "detector_training": "run02_running",
+    "code_checkpoint": "c8fec462",
+    "detector_training": "v3_finetune_run01_running_after_generic_run02_failed_recall_gate",
     "detector_manifest_sha256": "aee2baf8b3c0b7e9b1fd110501e346f62b638cd7f7d5f30e5185690250e13013",
     "recognition_checkpoint_sha256": "0c01ff4ad8a0eb6a2efa5f22e5c34acbf6575424e6d4d65c51a01c7d926bb065",
     "recognition_status": "not_promoted_source_recall_failure",

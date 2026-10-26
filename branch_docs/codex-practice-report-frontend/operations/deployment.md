@@ -152,3 +152,5 @@ Compose与本地默认均使用v3检测和28类448蜱种分类，新增 `SPECIES
 2026-10-26已完成默认配置真实HTTP冒烟：独立CPU服务端口8016，数据库`output/optimization_20261015/rebuild_20261024/service_smoke_run01.db`。健康、错误MIME、损坏图片、超过10MB拒绝、真实图推理、历史列表/详情与model_version一致性通过；拒绝请求未入库，成功1条。耗时28.72秒是CPU服务数据，不能作为GPU网页性能指标。产物`service_smoke_run01/report.json`、`analysis.json`和`result.jpg`，日志`logs/service_smoke_run01.log`。未操作原数据库；候选模型HTTP及Docker尚未验证。
 
 模型、数据及完整日志在本机ignored输出目录，不随代码推送；他机不能仅凭Git代码使用本次新权重。接手先读CONTEXT与实验登记，禁止按文件名猜测“best”已通过验收。
+
+推理版本现完整记录detector/species/insect/presence模型SHA；如果实验profile含detector.model_sha256，启动时也强制核对检测权重。53项CPU回归通过。该变更后已用service_smoke_run02重复独立CPU HTTP验证：成功1图、3类拒绝、历史和完整版本一致，耗时18.40秒（CPU，不与run01作性能结论），数据库单独命名。验证服务已停止，不占用日常端口或原数据库。

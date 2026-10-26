@@ -16,13 +16,17 @@ from app.schemas import ok, fail
 from app.routers import analyze, history
 
 
-def verify_artifact(path, expected_hash):
-    """Calibration belongs to an exact model and split, not just a class count."""
+def artifact_sha256(path):
     digest = hashlib.sha256()
     with open(path, 'rb') as source:
         for chunk in iter(lambda: source.read(1024 * 1024), b''):
             digest.update(chunk)
-    if digest.hexdigest() != expected_hash:
+    return digest.hexdigest()
+
+
+def verify_artifact(path, expected_hash):
+    """Calibration belongs to an exact model and split, not just a class count."""
+    if artifact_sha256(path) != expected_hash:
         raise ValueError('模型或数据划分与校准配置不一致，请重新评估并校准')
 
 
@@ -53,7 +57,12 @@ async def lifespan(app: FastAPI):
         ]:
             verify_artifact(model_path, profile[name]['model_sha256'])
             verify_artifact(split_path, profile[name]['split_sha256'])
+        detector_hash = artifact_sha256(settings.detector_path)
+        if profile.get('detector') and detector_hash != profile['detector']['model_sha256']:
+            raise ValueError('检测权重与实验配置不一致')
         detector = Detector(settings.detector_path, tile=settings.detect_tile)
+        if profile.get('detector',{}).get('bbox_only',False):
+            detector.model.roi_heads.mask_roi_pool = None
         classifier = SpeciesClassifier(
             settings.species_model_path, settings.species_split_json,
             input_size=settings.species_input_size,
@@ -87,6 +96,9 @@ async def lifespan(app: FastAPI):
                                           get_cn_map(), profile=profile)
         app.state.inference_version = dict(profile_sha256=hashlib.sha256(
             Path(settings.inference_profile_path).read_bytes()).hexdigest(),
+            detector_model_sha256=detector_hash,
+            species_model_sha256=profile['species']['model_sha256'],
+            insect_model_sha256=profile['insect']['model_sha256'],
             presence_model_sha256=profile.get('recognition', {}).get('model_sha256'))
     except Exception as e:
         # 模型缺失/损坏时快速失败并给出明确提示（fail-fast，比运行中崩溃好排查）

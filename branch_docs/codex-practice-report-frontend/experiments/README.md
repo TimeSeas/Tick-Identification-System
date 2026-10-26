@@ -8,6 +8,8 @@
 | rebuild-20261024-audit | 完成 | ignored目录data_audit.json和training_audit.md |
 | rebuild-20261024-data | 完成 | ignored目录data/中的冻结清单与摘要，分组断言通过 |
 | rebuild-20261024-recognition | 候选未通过整体验收 | 见[run01登记](recognition_run01.md)；13轮完成，第14轮失败；新物种头拒用，presence候选同源漏识别增加，不切默认 |
-| rebuild-20261024-detector | 正式run02训练中 | [run01](detector_run01.md)首轮空mask失败；[run02](detector_run02.md)再隔离1训练图，全量Dataset预检通过，重启完整3轮，原v3不覆盖 |
+| rebuild-20261024-detector | run02完整3轮未达门槛；v3微调待启动 | [run01](detector_run01.md)首轮空mask失败；[run02](detector_run02.md)再隔离1训练图，全量Dataset预检通过，重启完整3轮，原v3不覆盖 |
 
 本轮大文件根路径：`output/optimization_20261015/rebuild_20261024/`。新实验使用独立子目录，不覆盖已有best/last。参数选择只用验证；校准集只做阈值，验收集在冻结后评估。不存在充分独立验收时必须标明“同源对照/历史回顾”，不能用措辞替换证据。
+
+新候选：[现役v3微调登记](detector_v3_finetune_run01.md)，小学习率困难代理负例训练，val明确为已见部分来源的开发比较。
