@@ -1,7 +1,6 @@
 """Render frozen same-input component cases, including failures and regressions."""
 import argparse
 import json
-import math
 from pathlib import Path
 import sys
 

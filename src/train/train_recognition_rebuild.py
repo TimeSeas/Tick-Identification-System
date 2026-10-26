@@ -36,6 +36,27 @@ def save_json(path, data):
     tmp.replace(path)
 
 
+def validate_resume_directory(prior_config, output, checkpoint):
+    original=Path(prior_config['out']).resolve()
+    if Path(output).resolve()!=original or Path(checkpoint).resolve().parent!=original:
+        raise ValueError('Resume must use the original experiment directory and its checkpoint')
+
+
+def optimizer_step(parameters, optimizer, scaler):
+    parameters=list(parameters)
+    scaler.unscale_(optimizer)
+    norm=nn.utils.clip_grad_norm_(parameters,5,error_if_nonfinite=not scaler.is_enabled())
+    finite=bool(torch.isfinite(norm))
+    if finite:
+        scaler.step(optimizer); scaler.update()
+    else:
+        # The loss can be finite while scaled FP16 gradients overflow. Never
+        # update parameters in that case; record it and reduce the dynamic scale.
+        scaler.update(new_scale=scaler.get_scale()*.5)
+    optimizer.zero_grad(set_to_none=True)
+    return finite
+
+
 def validate_manifest(split):
     classes = split['classes']
     if len(classes) != len(set(classes)) or not classes:
@@ -144,6 +165,7 @@ def train_epoch(model, loader, optimizer, scaler, device, accumulate, max_steps=
     count = min(len(loader), max_steps) if max_steps else len(loader)
     optimizer.zero_grad(set_to_none=True)
     total = 0
+    skipped=consecutive=0
     for step, (images, tick, species, _) in enumerate(loader):
         if step >= count:
             break
@@ -156,12 +178,16 @@ def train_epoch(model, loader, optimizer, scaler, device, accumulate, max_steps=
         scaler.scale(loss/window).backward()
         total += loss.item()
         if (step+1)%accumulate == 0 or step+1 == count:
-            scaler.unscale_(optimizer)
-            nn.utils.clip_grad_norm_(model.parameters(), 5, error_if_nonfinite=True)
-            scaler.step(optimizer); scaler.update(); optimizer.zero_grad(set_to_none=True)
+            finite=optimizer_step(model.parameters(),optimizer,scaler)
+            consecutive=0 if finite else consecutive+1
+            skipped+=int(not finite)
+            if not finite:
+                print(f'AMP skipped optimizer update at batch={step+1}, scale={scaler.get_scale()}',flush=True)
+            if consecutive>=5:
+                raise FloatingPointError('Five consecutive AMP gradient overflows; investigate inputs and model')
         if (step+1)%50 == 0:
             print(f'batch={step+1}/{count} loss={total/(step+1):.5f}', flush=True)
-    return total/count, count
+    return total/count, count, skipped
 
 
 def main():
@@ -222,6 +248,7 @@ def main():
     start, best, stale = 0, -math.inf, 0
     if args.resume:
         checkpoint = torch.load(args.resume,map_location='cpu',weights_only=False)
+        validate_resume_directory(checkpoint['metadata'],args.out,args.resume)
         for key in config:
             if key in ('resume','out'):
                 continue
@@ -240,13 +267,13 @@ def main():
     try:
         for epoch in range(start,args.epochs):
             begin = time.monotonic()
-            loss, steps = train_epoch(model,train,optimizer,scaler,device,args.accumulate,args.max_steps)
+            loss, steps, skipped = train_epoch(model,train,optimizer,scaler,device,args.accumulate,args.max_steps)
             metrics, records = evaluate(model,val,device,split['val'],len(classes))
             score = (metrics['balanced_accuracy']+metrics['species_macro_f1'])/2
             improved = score > best
             best, stale = max(best,score), 0 if improved else stale+1
             scheduler.step()
-            record = dict(epoch=epoch,train_loss=loss,steps=steps,validation=metrics,
+            record = dict(epoch=epoch,train_loss=loss,steps=steps,amp_skipped_updates=skipped,validation=metrics,
                 selection_score=score,best=improved,partial=bool(args.max_steps),seconds=time.monotonic()-begin)
             with (args.out/'epochs.jsonl').open('a',encoding='utf-8') as f:
                 f.write(json.dumps(record,ensure_ascii=False)+'\n')

@@ -16,13 +16,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data',type=Path,required=True)
     parser.add_argument('--regions',type=Path,required=True)
+    parser.add_argument('--task',choices=['species','negative'],default='species')
     args = parser.parse_args()
-    split = json.loads((args.data/'species_split.json').read_text('utf-8'))
+    split = json.loads((args.data/('species_split.json' if args.task=='species' else 'insect_split.json')).read_text('utf-8'))
     cache = json.loads((args.regions/'proposals.json').read_text('utf-8'))['boxes']
     selected, labels = [], set()
     for row in split['train']:
         boxes = cache.get(row['sha256'],[])
-        if row['label'] not in labels and len(boxes)==1 and boxes[0]['score']>=.8:
+        qualifies=(len(boxes)==1 and boxes[0]['score']>=.8) if args.task=='species' else bool(boxes) and row['label']!='tick'
+        if row['label'] not in labels and qualifies:
             selected.append((row,boxes[0])); labels.add(row['label'])
         if len(selected)==16:
             break
@@ -40,8 +42,9 @@ def main():
             sheet.paste(thumb,(x+offset+(116-thumb.width)//2,y+(225-thumb.height)//2))
         draw.text((x+2,y+229),row['label'][:31],fill='black')
         draw.text((x+2,y+245),f'whole / ROI  score={proposal["score"]}',fill='black')
-    sheet.save(args.regions/'quality_preview.png')
-    (args.regions/'quality_preview_cases.json').write_text(json.dumps(selected,indent=2),'utf-8')
+    prefix='quality_preview' if args.task=='species' else 'negative_quality_preview'
+    sheet.save(args.regions/f'{prefix}.png')
+    (args.regions/f'{prefix}_cases.json').write_text(json.dumps(selected,indent=2),'utf-8')
 
 
 if __name__=='__main__':

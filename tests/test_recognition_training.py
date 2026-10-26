@@ -8,12 +8,44 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'src/train'))
-from train_recognition_rebuild import (sampling_weights, metrics_from_predictions, validate_manifest)
+from train_recognition_rebuild import (sampling_weights, metrics_from_predictions, validate_manifest,
+    validate_resume_directory, optimizer_step)
 from app.services.recognition_model import prepare_image, letterbox_tensor, recognition_loss
 from app.services.recognition_classifier import RecognitionClassifier
 
 
 class RecognitionTests(unittest.TestCase):
+    def test_finite_amp_gradient_updates_parameter(self):
+        parameter=torch.nn.Parameter(torch.tensor(1.0))
+        optimizer=torch.optim.SGD([parameter],lr=.1)
+        scaler=torch.amp.GradScaler('cpu',init_scale=8)
+        scaler.scale(parameter.square()).backward()
+        self.assertTrue(optimizer_step([parameter],optimizer,scaler))
+        self.assertAlmostEqual(parameter.item(),.8,places=6)
+
+    def test_resume_cannot_mix_a_different_experiment_directory(self):
+        with self.assertRaisesRegex(ValueError,'original experiment'):
+            validate_resume_directory(dict(out=str(ROOT/'output/A')),ROOT/'output/B',ROOT/'output/A/last_checkpoint.pth')
+        validate_resume_directory(dict(out=str(ROOT/'output/A')),ROOT/'output/A',ROOT/'output/A/last_checkpoint.pth')
+
+    def test_amp_gradient_overflow_skips_update_and_reduces_scale(self):
+        parameter=torch.nn.Parameter(torch.tensor(1.0))
+        optimizer=torch.optim.SGD([parameter],lr=.1)
+        scaler=torch.amp.GradScaler('cpu',init_scale=8)
+        scaler.scale(parameter.square()).backward()
+        parameter.grad.fill_(float('inf'))
+        self.assertFalse(optimizer_step([parameter],optimizer,scaler))
+        self.assertEqual(parameter.item(),1)
+        self.assertEqual(scaler.get_scale(),4)
+        self.assertIsNone(parameter.grad)
+
+    def test_full_precision_nonfinite_gradients_still_fail(self):
+        parameter=torch.nn.Parameter(torch.tensor(1.0))
+        parameter.grad=torch.tensor(float('inf'))
+        optimizer=torch.optim.SGD([parameter],lr=.1)
+        with self.assertRaises(RuntimeError):
+            optimizer_step([parameter],optimizer,torch.amp.GradScaler('cpu',enabled=False))
+
     def test_partial_checkpoint_is_rejected_by_inference_loader(self):
         with patch('app.services.recognition_classifier.torch.load',return_value=dict(partial=True)):
             with self.assertRaisesRegex(ValueError,'Partial'):
