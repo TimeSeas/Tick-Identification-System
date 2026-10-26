@@ -80,6 +80,7 @@ def main():
             proxy_fp_reduction_at_least_30pct=current['proxy_positive_rate']<=previous['proxy_positive_rate']*.7,
             count_mae_not_worse=current['count_mae']<=previous['count_mae']),
         limitations=['full-frame detector only, not tiles or full service cascade',
+            'new saved boxes are float; old service cache boxes are integerized; final service evaluation required',
             'old detector saw some new val source groups; diagnostic comparison',
             'folder negative labels are proxies, not human-confirmed absence'])
     (args.out/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),'utf-8')

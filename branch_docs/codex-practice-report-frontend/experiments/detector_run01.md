@@ -1,6 +1,6 @@
 # 检测正式重训 run01
 
-登记：2026-10-26，已启动，GPU会话91302，先完整3轮。原v3不覆盖、不切默认。决策见[当前计划](../plans/recognition_policy_followup_20261026.md)。
+登记：2026-10-26，**首轮读取标注失败，未完成任何epoch**。训练日志最后记录batch2760，随后worker发现空栅格mask；失败目录保留，不恢复为正式成功。原v3不覆盖、不切默认。决策见[当前计划](../plans/recognition_policy_followup_20261026.md)。
 
 输出根 `output/optimization_20261015/rebuild_20261024/`；检查点 `detector_run01/`，日志 `logs/detector_run01.log`。
 
@@ -20,6 +20,8 @@ val用于开发选模，不是最终独立测试；来源代理不是人工逐�
 训练后使用compare_detector_rebuild.py读取每轮val预测和已缓存v3全图检测，比较相同495张像素上的原始检测能力；完整渲染训练前固定39例，保留失败。此比较只含全图检测，不混入切块或旧级联指标。之后另测完整级联，不能把检测器指标当网页最终结果。
 
 ## 本次冻结源码
+
+失败根因：annotation343在640图上是面积0.5的三角形，bbox仅2×2，pycocotools栅格化后面积0。全量标注扫描只发现此1条异常，位于train。不能用bbox捏造mask，也不能只删这条目标让它成为背景；后续run02将整张训练图片隔离，val/cal不变。原run01没有完成epoch，因此没有可复用检查点；failure.json中的steps=0表示完成轮次累计步数，不表示没有执行训练，实际日志保留至batch2760。
 
 - service_detector_sha256: `f7ddd2d5206b65b0d120c66dfa258dd63746a6bcb88da6ffb21381dd1e30d11a`
 - trainer_sha256: `cc3c38c51724e6135e3a7d9aca9b1af6cf0e60a82bee4c6a69385cccc072b94d`
