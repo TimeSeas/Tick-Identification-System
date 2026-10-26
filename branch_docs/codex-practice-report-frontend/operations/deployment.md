@@ -6,11 +6,13 @@
 
 - 检测：`output/optimization_20261015/rebuild_20261024/detector_v3_finetune_run01/frozen_detector.pth`，SHA256 `9e7a3a9b9cb32df87a37be71d85068f98a28d17bb61f828354534d4e95ed8b7c`。
 - 配置：`configs/inference_detector_balanced.json`，SHA256 `6164cdf41a781fa3fcc43ebc5990ad460a238b3ff4efc6bd167298fa8a2e86d0`。检测门槛.3、1024/1200、IoU=.3；原28类448物种与昆虫模型/校准不变。
-- 默认变更在后端重启后生效，未替用户重启日常服务。独立验证端口8016已停止。真实CUDA HTTP、历史/版本及JPEG验证通过，单图0.806秒；Docker仅同步配置，未构建/实跑。
+- 用户随后要求重启并做浏览器抽查，当前8000/5174已运行新默认，使用独立测试数据库；见下文。独立验证端口8016已停止。此前CUDA HTTP、历史/版本及JPEG验证通过，单图0.806秒；Docker仅同步配置，未构建/实跑。
 
 完整效果及来源代价见[门槛核验](../experiments/detector_calibration_run01.md)。495开发验证的误报79→32、MAE .20745→.12766、召回87.91%→88.37%不能描述为独立测试。未知物种9/80错误确认仍未解决，部分来源检出有少量损失。
 
 本机原模型/数据存在时，可沿用原启动命令；不要下载或用其他同名权重代替。模型不随Git推送，他机必须取得精确权重并校验SHA。以下历史章节中的原v3路径与原配置只代表此前版本。
+
+浏览器抽查已完成10种20张，网页`http://127.0.0.1:5174/`，档案页有20条独立测试记录。后端8000 PID27396、前端5174 PID36224以Windows独立隐藏后台进程运行，实时信息在`output/optimization_20261015/rebuild_20261024/browser_species_20261026_run01/services.json`，进程号须现场核对。后端DB_URL只在该进程中指向此目录`browser_tests.db`，原数据库未操作。恢复原历史时，用没有该DB_URL覆盖的新进程正常启动后端，保留两个数据库。完整[浏览器核对记录](../experiments/browser_species_20261026.md)包含全部结果与不一致框。
 
 本地回滚（在web/backend目录，重启服务）：
 

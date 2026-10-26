@@ -8,7 +8,9 @@
 
 检测1024/1200、门槛.3、IoU=.3、全图后空检出才切块；关闭不使用的mask回贴。原28类448蜱种与昆虫模型、校准、规则不变。原v3及configs/inference_optimization.json完整保留回滚。configs/inference_detector_finetune.json（.5）仅研究对照，双头新物种头/存在性头及VerifiedDetector均不启用。
 
-目前没有训练或评估GPU任务。独立CUDA HTTP run04已结束，端口8016验证服务PID24928已停止；未替用户重启日常服务，默认变更需要后端重启。未操作原web/backend/data.db，未构建/实测Docker。其他机器缺少本地新权重时不能仅Git拉取后直接启动。
+目前没有离线训练或评估任务。按用户要求已重启并完成20张随机图片浏览器核对，网页当前运行新默认。后端8000 PID27396、前端5174 PID36224，使用Start-Process -WindowStyle Hidden独立后台启动；端口与PID需现场检查，旧会话内进程曾随会话结束退出。后端常驻CUDA模型，后续训练前应先处理这个已知服务的显存占用。8016旧验证服务已停止。当前DB_URL指向output/optimization_20261015/rebuild_20261024/browser_species_20261026_run01/browser_tests.db，原web/backend/data.db未操作。未构建/实测Docker。
+
+最新用户任务是重启后端、随机选带物种文件夹名图片做浏览器测试，已完成10种20张。至少一个匹配候选20/20；正确已确认15/20；仅待确认5/20；错误已确认0/20。共22个预测框，21个候选与图片文件夹一致，7框待确认；02号有额外小框候选全沟硬蜱，与希伯来花蜱文件夹不一致，疑似误检/局部重复，缺少逐框真值不能擅自删掉。详见experiments/browser_species_20261026.md，名单、完整页面文本、逐框JSON、20张截图及档案截图均保存在同名ignored输出目录。不能把20/20图片有正确候选说成所有框全对或独立准确率。
 
 Python C:/Users/a/.conda/envs/tick_detection/python.exe，RTX4060 Laptop8GB。设置PYTHONDONTWRITEBYTECODE=1、PYTHONIOENCODING=utf-8；环境无pytest，使用python -m unittest discover -s tests -q，62项通过。同一GPU只运行一个任务，活跃任务的源文件/权重/清单不修改。
 

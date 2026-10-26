@@ -81,5 +81,16 @@
     "release_manifest_sha256": "faf9e972550e9d8fe8651cf5e3640aae316770715c21e852f0aaab701edc15d1",
     "source_check_status": "complete_with_documented_recall_losses_and_unknown_species_risk",
     "remote_push": "confirmed origin/codex/practice-report-frontend"
+  },
+  "browser_species_check": {
+    "date": "2026-10-26",
+    "code_checkpoint": "cd656f32",
+    "seed": 2941406485,
+    "manifest_sha256": "3941f8fb100f68b637fc57b978900b5d2651671e7659652e77fb1131aa0fd3b8",
+    "ui_results_sha256": "5f0a503a83c019465e0a29e7673a977a4d5956f647df27501a57cad2c80a5848",
+    "artifact_root": "output/optimization_20261015/rebuild_20261024/browser_species_20261026_run01",
+    "report": "experiments/browser_species_20261026.md",
+    "status": "completed_20_browser_uploads_development_check_with_extra_mismatched_candidate",
+    "database": "isolated browser_tests.db, original data.db unchanged"
   }
 }
