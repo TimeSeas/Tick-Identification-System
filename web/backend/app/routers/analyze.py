@@ -40,6 +40,7 @@ def analyze(request: Request, file: UploadFile = File(...),
         with INFERENCE_LOCK:
             load_rgb_image(data)
             result = request.app.state.pipeline.analyze(data)
+            result['model_version'] = request.app.state.inference_version
     except ImageValidationError as error:
         return fail(str(error), 400)
 

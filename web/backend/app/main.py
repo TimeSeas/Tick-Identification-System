@@ -5,6 +5,7 @@ FastAPI 入口：应用实例、lifespan（模型加载）、CORS、路由注册
 from contextlib import asynccontextmanager
 import json
 import hashlib
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -65,8 +66,28 @@ async def lifespan(app: FastAPI):
                 raise ValueError(f'{name}校准类别与模型不一致')
         if set(classifier.classes) != set(profile['species']['region_thresholds']):
             raise ValueError('区域校准类别与蜱种模型不一致')
-        app.state.pipeline = Pipeline(#在前面创建蜱虫检测器和蜱虫分类器这两个实例后，传入Pipeline构造函数
-            insect, detector, classifier, settings.thresholds_path, get_cn_map(), profile=profile)
+        if profile.get('recognition'):
+            from app.services.recognition_classifier import RecognitionClassifier
+            from app.services.recognition_pipeline import RecognitionPipeline
+            recognition_profile = profile['recognition']
+            verify_artifact(settings.recognition_model_path, recognition_profile['model_sha256'])
+            verify_artifact(settings.detector_path, recognition_profile['detector_sha256'])
+            recognition = RecognitionClassifier(settings.recognition_model_path)
+            if (recognition.classes != classifier.classes or
+                recognition.input_size != recognition_profile['input_size'] or
+                recognition.metadata['split_sha256'] != recognition_profile['training_manifest_sha256'] or
+                recognition_profile['species_mode'] != 'legacy'):
+                raise ValueError('存在性复核模型、类别或训练清单与配置不一致')
+            # Service consumes boxes only; avoid allocating full-resolution masks.
+            detector.model.roi_heads.mask_roi_pool = None
+            app.state.pipeline = RecognitionPipeline(insect, detector, recognition, profile,
+                                                      get_cn_map(), species_classifier=classifier)
+        else:
+            app.state.pipeline = Pipeline(insect, detector, classifier, settings.thresholds_path,
+                                          get_cn_map(), profile=profile)
+        app.state.inference_version = dict(profile_sha256=hashlib.sha256(
+            Path(settings.inference_profile_path).read_bytes()).hexdigest(),
+            presence_model_sha256=profile.get('recognition', {}).get('model_sha256'))
     except Exception as e:
         # 模型缺失/损坏时快速失败并给出明确提示（fail-fast，比运行中崩溃好排查）
         raise RuntimeError(f"模型加载失败: {e}") from e

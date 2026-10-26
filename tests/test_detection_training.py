@@ -96,7 +96,7 @@ class TrainingFailureTests(unittest.TestCase):
         model = LossModel()
         optimizer = torch.optim.SGD(model.parameters(), lr=.1)
         scaler = torch.amp.GradScaler('cuda', enabled=False)
-        _, batches = train_epoch(model, self.batches([1, 3, 5]), optimizer, scaler,
+        _, batches, skipped = train_epoch(model, self.batches([1, 3, 5]), optimizer, scaler,
                                   torch.device('cpu'), accumulate=2)
         self.assertEqual(batches, 3)
         # First update averages gradients 1 and 3; final singleton gradient is 5.
@@ -113,7 +113,7 @@ class TrainingFailureTests(unittest.TestCase):
         model = LossModel()
         optimizer = torch.optim.SGD(model.parameters(), lr=.1)
         scaler = torch.amp.GradScaler('cuda', enabled=False)
-        _, count = train_epoch(model, Loader(), optimizer, scaler, torch.device('cpu'),
+        _, count, skipped = train_epoch(model, Loader(), optimizer, scaler, torch.device('cpu'),
                                accumulate=2, max_batches=1)
         self.assertEqual(count, 1)
         self.assertAlmostEqual(model.weight.item(), .9, places=6)

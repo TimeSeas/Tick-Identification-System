@@ -3,11 +3,17 @@ import math
 
 import numpy as np
 
-from app.services.pipeline import Pipeline, predict, DEFAULT_THRESHOLD
+from app.services.pipeline import Pipeline, predict, DEFAULT_THRESHOLD, ARACHNID
 from app.utils.images import load_rgb_image
 
 
-def score_proposals(image,proposals,recognition_classifier):
+def coarse_guard_rejects(result,tick_probability,guard,thresholds=None):
+    threshold=max(guard.get('confidence',90),(thresholds or {}).get(result['slug'],0))
+    return (result['slug'] not in ARACHNID and result['confidence']>=threshold and
+            tick_probability<guard.get('strong_presence',.95))
+
+
+def score_proposals(image,proposals,recognition_classifier,insect_classifier=None,guard=None,insect_thresholds=None):
     """Same region pixels for experiment and service. Boxes are XYXY, EXIF normalized."""
     from app.services.recognition_model import prepare_image
     scored=[]
@@ -21,7 +27,12 @@ def score_proposals(image,proposals,recognition_classifier):
         probability=result['tick_probability']
         if not math.isfinite(probability) or not 0<=probability<=1:
             raise ValueError('Invalid recognition presence probability')
-        scored.append((dict(source,bbox=box,tick_probability=probability),result,crop))
+        detection=dict(source,bbox=box,tick_probability=probability)
+        if guard:
+            coarse=predict(insect_classifier,np.array(crop))
+            detection.update(coarse_slug=coarse['slug'],coarse_confidence=coarse['confidence'],
+                coarse_rejected=coarse_guard_rejects(coarse,probability,guard,insect_thresholds))
+        scored.append((detection,result,crop))
     return scored
 
 
@@ -52,11 +63,12 @@ class RecognitionPipeline(Pipeline):
         if not proposals and self.detector.tile>1:
             proposals=[d for d in self.detector.detect(rgb,tile=self.detector.tile)
                        if d['score']>=self.detector_threshold]
-        scored=score_proposals(image,proposals,self.recognition_classifier)
+        scored=score_proposals(image,proposals,self.recognition_classifier,self.insect_classifier,
+            self.profile['recognition'].get('coarse_guard'),self.insect_thresholds)
         retained=[]
         single=len(proposals)==1
         for detection,result,crop in scored:
-            if detection['tick_probability']<self.tick_threshold:
+            if detection['tick_probability']<self.tick_threshold or detection.get('coarse_rejected',False):
                 continue
             # Presence and species can be promoted independently after evaluation.
             if self.species_classifier is not None:

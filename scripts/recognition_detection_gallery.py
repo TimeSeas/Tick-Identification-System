@@ -71,7 +71,7 @@ def main():
                 raise ValueError('Trace order changed')
             with Image.open(ROOT/row['path']) as source:
                 image=(ImageOps.exif_transpose(source) if row.get('negative_label') else source).convert('RGB')
-            new=[d for d in trace['new'] if d['tick_probability']>=threshold]
+            new=[d for d in trace['new'] if d['tick_probability']>=threshold and not d.get('coarse_rejected',False)]
             expected='proxy non-tick: '+row['negative_label'] if row.get('negative_label') else 'annotated ticks: '+str(len(row['annotations']))
             y=40+offset*310
             draw.text((12,y),f'{item["kind"]} | {expected} | val row {item["index"]}',fill='black')

@@ -34,11 +34,26 @@ python src/train/train_recognition_rebuild.py --split output/optimization_202610
 
 - 训练best_checkpoint SHA256：`5adebb9315c0dea8c6b8a6274a10e46089e82e234df541c1bb4612b3a1437449`。
 - 推理导出`recognition_run01/frozen_best.pth`，SHA256：`0c01ff4ad8a0eb6a2efa5f22e5c34acbf6575424e6d4d65c51a01c7d926bb065`，仅保存模型/类别/预处理/来源，不保存优化器，不覆盖训练证据。
-- `comparison_val_run01/`正在对冻结清单进行旧/新组件比较，日志`logs/comparison_val_run01.log`。未看到完整结果前不作替换决定。
+- `comparison_val_run01/`及`comparison_calibration_run01/`比较完成。val新物种top1=.70697、macro-F1=.59515，旧头top1=.96078（旧模型见过部分来源，不是公平未见比较）；新物种头不部署。存在性recall旧.56245→新.99214、代理FPR旧.00417→新.01753，仅组件而非级联。
 - 模型训练结束后修正训练器：允许AMP偶发梯度溢出时跳过该次更新并降低动态scale，记录跳过数，5次连续溢出失败；FP32非有限梯度仍失败。CPU真实GradScaler复现通过，不据此断言第14轮异常仅由AMP引起。后续实验须新目录，新源码哈希不得静默恢复本run。
 - resume目录限制也已修复，仅允许检查点原实验目录。44项回归通过。训练采用的旧源SHA仍以原config和提交878f7830为准，不能把后续修正说成本次已训练内容。
 
-## 接下来的比较与边界
+## 完整级联比较与后续
+
+以下都是开发/同源诊断；不把代理标签当人工真负。旧模型看过部分新分组来源。
+
+| 实验目录 | 新定位召回 | 新计数MAE | 代理误报图（旧→新） | 结论 |
+|---|---|---|---|---|
+| cascade_val_run01（det=.3/presence=.5） | .91163 | .38830 | 79→73 /307 | 计数和误报失败 |
+| cascade_val_run01_det05（det=.5/presence=.95） | .87442 | .19681 | 79→38 /307 | 开发val门槛通过 |
+| cascade_calibration_run01（冻结同策略） | .95897 | .18085 | 77→34 /296 | 当时校准确认通过 |
+| cascade_val_run01_guard（分来源门槛+区域复核） | .88372 | .20213 | 79→77 /307 | 误报门槛失败 |
+
+`same_source_frozen_run01/`随后揭示precision候选对archive2近景蜱虫召回53/55→49/55，mite误报32/54→11/54。因此未切默认。109图已查看，后续不能再作为未见选参/验收。校准组件按每个正例来源98%经验召回得到presence=.007866711355745792，由12张insect_tick_full来源限定；对应区域复核仍未兼顾召回/误报。详见[后续计划](../plans/recognition_policy_followup_20261026.md)。
+
+冻结63例已生成6页组件对照；39例定位已生成10页，包含失败。学习曲线与逐类错误CSV保存在对应产物目录。当前开始检测正式重训，原双头run01和失败信息完整保留。
+
+## 证据边界
 
 1. 完成训练，冻结best检查点与SHA；对比旧模型时明确旧权重见过部分新val来源，所以新分组val不能充当旧模型的独立泛化评估。
 2. `evaluate_recognition_rebuild.py`做同输入组件诊断；`evaluate_recognition_cascade.py`评估数量/定位及代理误报，不能给无物种真值的框伪造物种准确率。

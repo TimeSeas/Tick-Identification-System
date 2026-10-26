@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     species_split_json: str = "../../data/tick_species/split_clean.json"
     species_input_size: int = 448  # 与 clean_448 训练及阈值保持一致
     inference_profile_path: str = "../../configs/inference_optimization.json"
+    recognition_model_path: str = "../../output/optimization_20261015/rebuild_20261024/recognition_run01/frozen_best.pth"
     detect_tile: int = 2   # 切块补偿的切分数：全图检测未检出时才启用（1=不补偿；2=2x2 小目标放大再试，多花几十秒，精度优先）
     insect_model_path: str = "../../output/insect_classifier/model/insect_best.pth"  # 昆虫粗分类（级联第一级）
     insect_split_json: str = "../../data/insects_split.json"

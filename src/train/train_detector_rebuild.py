@@ -26,6 +26,7 @@ from torchvision.ops.misc import FrozenBatchNorm2d
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from train_torchvision import JointDetectionTransform, collate_fn
+from training_safety import optimizer_step, validate_resume_directory
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'web/backend'))
@@ -239,6 +240,7 @@ def train_epoch(model, loader, optimizer, scaler, device, accumulate=1, max_batc
         raise ValueError('No training batches')
     optimizer.zero_grad(set_to_none=True)
     total_loss = 0.0
+    skipped=consecutive=0
     for batch_index, (images, targets) in enumerate(islice(loader, count)):
         images = [image.to(device) for image in images]
         targets = [{k: v.to(device) for k, v in target.items()} for target in targets]
@@ -252,15 +254,17 @@ def train_epoch(model, loader, optimizer, scaler, device, accumulate=1, max_batc
         scaler.scale(loss/window_size).backward()
         total_loss += loss.item()
         if (batch_index+1) % accumulate == 0 or batch_index+1 == count:
-            scaler.unscale_(optimizer)
             parameters = [p for group in optimizer.param_groups for p in group['params']]
-            # A single aggregate norm check avoids synchronizing CUDA once per
-            # parameter tensor. Infinite max_norm checks finiteness without clipping.
-            torch.nn.utils.clip_grad_norm_(parameters, float('inf'), error_if_nonfinite=True)
-            scaler.step(optimizer); scaler.update(); optimizer.zero_grad(set_to_none=True)
+            finite=optimizer_step(parameters,optimizer,scaler,max_norm=float('inf'))
+            consecutive=0 if finite else consecutive+1
+            skipped+=int(not finite)
+            if not finite:
+                print(f'AMP skipped batch={batch_index+1}, scale={scaler.get_scale()}',flush=True)
+            if consecutive>=5:
+                raise FloatingPointError('Five consecutive AMP gradient overflows')
         if (batch_index+1) % 20 == 0:
             print(f'batch {batch_index+1}/{count} mean_loss={total_loss/(batch_index+1):.5f}', flush=True)
-    return total_loss/count, count
+    return total_loss/count, count, skipped
 
 
 def parse_args(argv=None):
@@ -309,6 +313,7 @@ def main(argv=None):
                   service_dedup_iou=DEDUP_IOU,
                   service_detector_sha256=file_sha256(ROOT/'web/backend/app/services/detector.py'),
                   trainer_sha256=file_sha256(Path(__file__)),
+                  training_safety_sha256=file_sha256(Path(__file__).with_name('training_safety.py')),
                   joint_transform_sha256=file_sha256(Path(__file__).with_name('train_torchvision.py')))
     # COCO cache identity prevents accidentally passing the deployed two-class v3.
     if config['pretrained_sha256'] != 'bf2d0c1efbc936eeee2bc95a48e80ebc86b891f61b0106485937fc29f9315fc0':
@@ -331,10 +336,12 @@ def main(argv=None):
     if args.resume:
         checkpoint = torch.load(args.resume, map_location='cpu', weights_only=False)
         prior_config = checkpoint['config']
+        validate_resume_directory(prior_config,args.out,args.resume)
         for key in ('split_sha256', 'pretrained_sha256', 'min_size', 'max_size', 'batch_size',
                     'accumulate', 'freeze_low_stages', 'lr', 'negative_penalty', 'seed', 'workers', 'amp',
                     'device', 'max_steps',
-                    'trainer_sha256', 'joint_transform_sha256', 'service_dedup_iou', 'service_detector_sha256'):
+                    'trainer_sha256', 'joint_transform_sha256', 'service_dedup_iou', 'service_detector_sha256',
+                    'training_safety_sha256'):
             if prior_config[key] != config[key]:
                 raise ValueError(f'Resume configuration mismatch: {key}')
         if checkpoint['partial']:
@@ -356,7 +363,7 @@ def main(argv=None):
             remaining = args.max_steps-steps if args.max_steps else None
             if remaining is not None and remaining <= 0:
                 break
-            loss, batches = train_epoch(model, train_loader, optimizer, scaler, device,
+            loss, batches, skipped = train_epoch(model, train_loader, optimizer, scaler, device,
                                          args.accumulate, remaining)
             steps += batches
             metrics, predictions = evaluate(model, val_loader, device)
@@ -366,7 +373,7 @@ def main(argv=None):
             score = metrics['f1']-args.negative_penalty*proxy_rate
             improved = score > best_score
             best_score = max(best_score, score)
-            record = dict(epoch=epoch, steps=steps, train_loss=loss, validation=metrics,
+            record = dict(epoch=epoch, steps=steps, train_loss=loss, amp_skipped_updates=skipped, validation=metrics,
                           selection_score=score, partial=partial, best=improved)
             with (args.out/'epochs.jsonl').open('a', encoding='utf-8') as stream:
                 stream.write(json.dumps(record, ensure_ascii=False)+'\n')

@@ -6,7 +6,7 @@
 
 1. [分支维护约定](AGENTS.md)：授权、修改范围、训练和证据规则。
 2. [当前上下文](CONTEXT.md)：当前需求、进度、文件归属、下一步与未解决事项。
-3. [当前识别重建计划](plans/recognition_rebuild_20261024.md)：验收目标与实施顺序。
+3. [识别重建需求](plans/recognition_rebuild_20261024.md)和[当前检测重训计划](plans/recognition_policy_followup_20261026.md)：验收目标、失败证据与实施顺序。
 4. [历史索引](HISTORY.md)与[版本清单](VERSIONS.json)：此前工作及文档来源。
 5. [运行和部署](operations/deployment.md)：使用分支时的配置入口；变更模型后必须同步此处。
 

@@ -45,7 +45,7 @@ def summarize(rows,traces,kind,cutoff=.5):
     error=0
     by_label={}
     for row,trace in zip(rows,traces):
-        ds=trace['old'] if kind=='old' else [d for d in trace['new'] if d['tick_probability']>=cutoff]
+        ds=trace['old'] if kind=='old' else [d for d in trace['new'] if d['tick_probability']>=cutoff and not d.get('coarse_rejected',False)]
         if row.get('negative_label'):
             proxy_count+=1; proxy_positive+=bool(ds)
             counts=by_label.setdefault(row['negative_label'],dict(images=0,positive_images=0))
@@ -72,6 +72,7 @@ def main():
     p.add_argument('--out',type=Path,required=True)
     p.add_argument('--new-detection-threshold',type=float,default=.3)
     p.add_argument('--tick-threshold',type=float,default=.5)
+    p.add_argument('--coarse-guard',action='store_true')
     args=p.parse_args()
     torch.set_num_threads(4)
     if not (0<args.new_detection_threshold<=.5 and 0<=args.tick_threshold<=1):
@@ -83,6 +84,7 @@ def main():
     metadata=dict(detector_sha256=sha256(detector_path),split_sha256=sha256(args.split),
         checkpoint_sha256=sha256(args.checkpoint),subset=args.subset,
         new_detection_threshold=args.new_detection_threshold,tick_threshold=args.tick_threshold,
+        coarse_guard=args.coarse_guard,
         evaluator_sha256=sha256(Path(__file__)),
         model_sha256=sha256(ROOT/'web/backend/app/services/recognition_model.py'),
         classifier_sha256=sha256(ROOT/'web/backend/app/services/recognition_classifier.py'),
@@ -140,7 +142,8 @@ def main():
         if not proposals:
             proposals=[d for d in cached.row['tiles'] if d['score']>=args.new_detection_threshold]
         proposed=[]
-        for detection,result,crop in score_proposals(image,proposals,candidate):
+        guard=dict(confidence=90,strong_presence=.95) if args.coarse_guard else None
+        for detection,result,crop in score_proposals(image,proposals,candidate,insect,guard,old.insect_thresholds):
             proposed.append(dict(detection,tick_probability=result['tick_probability'],
                 candidate_slug=result['slug'],species_confidence=result['confidence']))
         traces['rows'].append(dict(path=row['path'],old=previous['detections'],new=proposed))
@@ -158,7 +161,7 @@ def main():
         'no per-box species truth in detector set','candidate bypasses old global/local coarse veto rules'])
     if args.subset=='val':
         report['validation_threshold_diagnostics']={str(t):summarize(rows,traces['rows'],'new',t)
-            for t in (.05,.1,.2,.3,.4,.5,.6,.7,.8,.9)}
+            for t in (.05,.1,.2,.3,.4,.5,.6,.7,.8,.9,.95,.98,.99,.995,.999)}
     save_json(args.out/'report.json',report)
     print(json.dumps(dict(old=old_result,new=new_result,gates=report['gates']),ensure_ascii=False),flush=True)
 

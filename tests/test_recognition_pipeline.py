@@ -7,7 +7,7 @@ from PIL import Image
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'web/backend'))
-from app.services.recognition_pipeline import RecognitionPipeline
+from app.services.recognition_pipeline import RecognitionPipeline,coarse_guard_rejects
 
 
 class FakeDetector:
@@ -33,6 +33,18 @@ class FakeInsect:
 
 
 class RecognitionPipelineTests(unittest.TestCase):
+    def test_arachnid_candidates_are_not_vetoed_by_coarse_guard(self):
+        for slug in ('tick','mite','spider','spider_mite'):
+            self.assertFalse(coarse_guard_rejects(dict(slug=slug,confidence=100),.2,
+                dict(confidence=90,strong_presence=.95)))
+
+    def test_guard_checks_coarse_confidence_only_for_non_arachnid_regions(self):
+        service,_=self.pipeline(probability=.7)
+        service.profile['recognition']['coarse_guard']=dict(confidence=90,strong_presence=.95)
+        self.assertEqual(service.analyze(self.image_bytes())['detections'],[])
+        service.recognition_classifier.probability=.99
+        self.assertEqual(len(service.analyze(self.image_bytes())['detections']),1)
+
     def pipeline(self,probability=.9,threshold=90):
         detector=FakeDetector()
         service=RecognitionPipeline(FakeInsect(),detector,FakeRecognition(probability),

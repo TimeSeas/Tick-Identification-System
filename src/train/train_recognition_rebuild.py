@@ -15,6 +15,7 @@ import torch
 from torch import nn
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from torchvision import transforms as T
+from training_safety import validate_resume_directory, optimizer_step
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'web/backend'))
@@ -34,27 +35,6 @@ def save_json(path, data):
     tmp = path.with_suffix('.tmp')
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), 'utf-8')
     tmp.replace(path)
-
-
-def validate_resume_directory(prior_config, output, checkpoint):
-    original=Path(prior_config['out']).resolve()
-    if Path(output).resolve()!=original or Path(checkpoint).resolve().parent!=original:
-        raise ValueError('Resume must use the original experiment directory and its checkpoint')
-
-
-def optimizer_step(parameters, optimizer, scaler):
-    parameters=list(parameters)
-    scaler.unscale_(optimizer)
-    norm=nn.utils.clip_grad_norm_(parameters,5,error_if_nonfinite=not scaler.is_enabled())
-    finite=bool(torch.isfinite(norm))
-    if finite:
-        scaler.step(optimizer); scaler.update()
-    else:
-        # The loss can be finite while scaled FP16 gradients overflow. Never
-        # update parameters in that case; record it and reduce the dynamic scale.
-        scaler.update(new_scale=scaler.get_scale()*.5)
-    optimizer.zero_grad(set_to_none=True)
-    return finite
 
 
 def validate_manifest(split):
@@ -219,6 +199,7 @@ def main():
     classes = validate_manifest(split)
     config = {k:str(v.resolve()) if isinstance(v,Path) else v for k,v in vars(args).items()}
     config.update(split_sha256=sha256(args.split), pretrained_sha256=sha256(args.pretrained),
+        training_safety_sha256=sha256(Path(__file__).with_name('training_safety.py')),
         trainer_sha256=sha256(Path(__file__)), model_sha256=sha256(ROOT/'web/backend/app/services/recognition_model.py'),
         preprocessing=PREPROCESSING, architecture='resnet50_tick2_species_v1',
         source_limitations=split.get('metadata',{}))
