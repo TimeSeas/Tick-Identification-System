@@ -66,7 +66,7 @@
     }
   ],
   "recognition_rebuild": {
-    "code_checkpoint": "eb68cc47 plus balanced release pending commit",
+    "code_checkpoint": "aa4b525ca8a6c57284e747d4f4283ce962897625",
     "detector_training": "v3_finetune_run01_complete_epoch2_selected",
     "detector_manifest_sha256": "aee2baf8b3c0b7e9b1fd110501e346f62b638cd7f7d5f30e5185690250e13013",
     "recognition_checkpoint_sha256": "0c01ff4ad8a0eb6a2efa5f22e5c34acbf6575424e6d4d65c51a01c7d926bb065",
@@ -78,7 +78,8 @@
     "detector_status": "branch_default_balanced_det03",
     "default_profile_sha256": "6164cdf41a781fa3fcc43ebc5990ad460a238b3ff4efc6bd167298fa8a2e86d0",
     "release_manifest": "output/optimization_20261015/rebuild_20261024/release_manifest.json",
-    "release_manifest_sha256": "e4930e1afd10f7ceeba9ddd58bb8a0727432a29c79ed816aeaef9dbdd073aff9",
-    "source_check_status": "complete_with_documented_recall_losses_and_unknown_species_risk"
+    "release_manifest_sha256": "faf9e972550e9d8fe8651cf5e3640aae316770715c21e852f0aaab701edc15d1",
+    "source_check_status": "complete_with_documented_recall_losses_and_unknown_species_risk",
+    "remote_push": "confirmed origin/codex/practice-report-frontend"
   }
 }

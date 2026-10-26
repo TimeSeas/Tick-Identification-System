@@ -40,4 +40,4 @@ proposal_verification_binary_run01仍未恢复召回，VerifiedDetector仅研究
 
 本轮主要实质改善是非蜱虫误报与计数，已落入分支默认；不能宣称未知物种或所有场景满意。后续优先审计已有archive2人工框，只接收训练来源组，补近景正例覆盖；其95图COCO含121框但segmentation为空，不能伪造矩形掩码或把漏标目标当负例。再研究未知物种/错误确认的独立训练与校准，并为混合图、小目标多蜱单列验收。已查看109/486/80不能反复伪装独立测试。任何新训练另建计划、冻结清单/来源与新实验目录，保留当前回滚点。
 
-收尾提交只选本轮路径，禁止git add .。用户dirty .gitignore、.learnings/ERRORS.md和LEARNINGS.md、web/backend/data.db、开发进程/web开发.md、毕业设计/毕业设计系统规划.md、output/taskbook_revision_20261024/全部保留不提交。GitHub推送eb68cc47多次连接重置/443超时，尚待完成本轮提交后重试，不能把本地提交称已推送。分支文档只维护本目录，原README/docs/论文材料是历史基线，不追加本轮结论。
+收尾提交只选本轮路径，禁止git add .。用户dirty .gitignore、.learnings/ERRORS.md和LEARNINGS.md、web/backend/data.db、开发进程/web开发.md、毕业设计/毕业设计系统规划.md、output/taskbook_revision_20261024/全部保留不提交。代码发布提交aa4b525c已成功推送origin/codex/practice-report-frontend（使用HTTP/1.1重试成功，含此前eb68cc47）；后续文档核对提交另行推送。release_manifest.json记录完整代码提交及源文件SHA。分支文档只维护本目录，原README/docs/论文材料是历史基线，不追加本轮结论。
