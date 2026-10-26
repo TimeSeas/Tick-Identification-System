@@ -42,6 +42,10 @@ python src/train/train_recognition_rebuild.py --split output/optimization_202610
 
 正式训练去掉max-steps并使用新目录、epochs=15。骨干从本地ImageNet初始化，前两残差阶段冻结，小批BN保持预训练统计；存在性/物种分别监督，COCO未知物种不计算species损失。验证逐sample_type报告，best按二分类balanced accuracy与species macro-F1均值选择，calibration内容不读取。正式检查点只允许相同配置和相同总epochs恢复；partial不能续成正式训练。代码/清单哈希变化须新建实验。
 
+run01实际命令使用workers=2，详见[实验登记](../experiments/recognition_run01.md)。完成轮次可用`plot_recognition_training.py --run <目录>`画学习曲线，用`analyze_recognition_errors.py --split <清单> --predictions <val_epoch_XXX.json> --out <新分析目录>`统计弱类和错误；这些不读测试集。
+
+训练结束后，先用`evaluate_recognition_rebuild.py --checkpoint <best> --split <区域清单> --subset val --out <新目录>`比较组件，再用同命令的calibration输出和`calibrate_recognition_rebuild.py`生成阈值。阈值要同时报告接受比例、正确接受数和样本不确定性；拒绝更多不等于top1提高。级联数量/定位使用`evaluate_recognition_cascade.py --checkpoint <best> --split <detector_split.json> --subset val --out <新目录>`；这项模型策略比较不含上传像素上限和网页延迟测试。
+
 ## 回归与模型切换
 
 ```powershell

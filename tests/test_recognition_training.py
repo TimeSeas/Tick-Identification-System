@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import torch
 from PIL import Image
@@ -9,9 +10,20 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'src/train'))
 from train_recognition_rebuild import (sampling_weights, metrics_from_predictions, validate_manifest)
 from app.services.recognition_model import prepare_image, letterbox_tensor, recognition_loss
+from app.services.recognition_classifier import RecognitionClassifier
 
 
 class RecognitionTests(unittest.TestCase):
+    def test_partial_checkpoint_is_rejected_by_inference_loader(self):
+        with patch('app.services.recognition_classifier.torch.load',return_value=dict(partial=True)):
+            with self.assertRaisesRegex(ValueError,'Partial'):
+                RecognitionClassifier('unused',device='cpu')
+
+    def test_new_classifier_rejects_old_untrained_score_fusion(self):
+        service=RecognitionClassifier.__new__(RecognitionClassifier)
+        with self.assertRaisesRegex(ValueError,'fusion'):
+            service.predict(None,whole_weight=.5)
+
     def test_negative_only_batch_has_finite_loss_and_zero_species_gradient(self):
         tick = torch.randn(4,2,requires_grad=True)
         species = torch.randn(4,28,requires_grad=True)

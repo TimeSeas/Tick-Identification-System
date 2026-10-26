@@ -26,13 +26,17 @@ def prepare_image(image, bbox=None, context=.15, normalize_exif=True):
     return image
 
 
-def letterbox_tensor(image, size=448):
+def letterbox_image(image, size=448):
     ratio = size/max(image.size)
     resized = image.resize((max(1, round(image.width*ratio)), max(1, round(image.height*ratio))),
                            Image.Resampling.BILINEAR)
     canvas = Image.new('RGB', (size, size), tuple(round(v*255) for v in MEAN))
     canvas.paste(resized, ((size-resized.width)//2, (size-resized.height)//2))
-    return F.normalize(F.to_tensor(canvas), MEAN, STD)
+    return canvas
+
+
+def letterbox_tensor(image, size=448):
+    return F.normalize(F.to_tensor(letterbox_image(image, size)), MEAN, STD)
 
 
 class RecognitionModel(nn.Module):

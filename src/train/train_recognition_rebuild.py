@@ -19,7 +19,7 @@ from torchvision import transforms as T
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'web/backend'))
 from app.services.recognition_model import (RecognitionModel, prepare_image,
-    letterbox_tensor, recognition_loss, PREPROCESSING, MEAN)
+    letterbox_tensor, letterbox_image, recognition_loss, PREPROCESSING, MEAN)
 
 
 def sha256(path):
@@ -75,7 +75,9 @@ class RecognitionDataset(Dataset):
             image = prepare_image(opened, row['bbox'],
                                   normalize_exif=row['coordinate_frame'] != 'raw')
         if self.train:
-            image = self.augment(image)
+            # Augment the actual model-size view, not a multi-megapixel source.
+            # This also preserves subjects at extreme aspect ratios before rotation.
+            image = self.augment(letterbox_image(image, self.size))
         return (letterbox_tensor(image, self.size), row['tick_label'],
                 self.class_indices.get(row['species_label'], -1), index)
 
