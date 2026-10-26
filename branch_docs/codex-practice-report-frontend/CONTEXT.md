@@ -1,6 +1,6 @@
 # 当前分支上下文
 
-更新日期：2026-10-24。当前代码起点：`dbf87bc1`；主分支不改动。当前任务仍在执行，文档隔离是新增维护要求，不代表识别重建已经结束。
+更新日期：2026-10-26。当前代码起点：`dbf87bc1`；文档隔离已提交至`504785dd`，后续训练代码待提交。主分支不改动。当前任务仍在执行，文档隔离是新增维护要求，不代表识别重建已经结束。
 
 ## 当前用户需求
 
@@ -22,15 +22,14 @@
 
 | 负责人 | 文件/工作 | 状态 |
 |---|---|---|
-| root | 分支文档隔离、分类/复核训练方案及后续编排 | 文档隔离完成；新分类训练尚未开始 |
-| cascade_eval | src/train/train_torchvision.py、src/train/train_detector_rebuild.py、tests/test_detection_training.py | 实现完成，13项CPU回归和COCO缓存严格加载通过；未GPU训练 |
-| usability | scripts/build_recognition_rebuild_data.py、tests/test_rebuild_data.py | 已生成清单，5项分组回归通过 |
+| root | 当前全部训练、区域准备、验证与文档 | 分类双头及训练器已实现；区域生成运行中；29项CPU回归通过 |
+| 历史agent产物 | 检测训练器与数据清单构建器 | 已接收；原agent当前不在线，继续工作不能依赖旧agent状态 |
 
 ## 当前模型与运行状态
 
-默认配置仍为旧v3检测及既有分类权重，未替换默认模型。2026-10-24没有新模型通过验收。首次4步试跑在完整val时因原图mask回贴显存耗尽失败；已修复为bbox-only验证，训练mask分支不变，16项CPU回归通过。新目录detector_pilot02正在重跑全部验证；属于partial实验，不能作为正式模型。2026-10-15的本机服务状态不能推断2026-10-24仍在运行；启动服务前应核对端口和进程归属。
+默认配置仍为旧v3检测及既有分类权重，未替换默认模型。尚无本轮新模型通过验收。首次4步试跑在完整val时因原图mask回贴显存耗尽失败；改为bbox-only验证后，pilot02因文件夹负例EXIF方向与清单尺寸不一致失败。2026-10-26已修复：无坐标标注的文件夹代理做EXIF规范化，COCO真值仍保持原始坐标。pilot03完成4步训练及全部500张验证，属于partial流程检查，不能用作正式模型或效果结论。17项检测回归、5项分组回归及7项分类回归通过。
 
-当前试跑日志：`output/optimization_20261015/rebuild_20261024/logs/detector_pilot02.log`，输出目录`detector_pilot02/`；首次失败证据仍在detector_pilot及其日志中。启动参数和恢复边界见[训练运行说明](operations/training.md)。同一GPU不要再启动其他训练或评估。
+当前GPU工作：`scripts/prepare_recognition_regions.py`，日志`output/optimization_20261015/rebuild_20261024/logs/regions.log`，缓存`regions/proposals.json`。会话59445；恢复前必须检查实际进程及GPU使用。候选区域使用旧v3提供位置，不自动作为人工真值；缓存每20图保存，可同配置续跑。历史失败证据保留，pilot03日志在同目录。启动参数和恢复边界见[训练运行说明](operations/training.md)。同一GPU不要再启动其他训练或评估。
 
 本机ML环境：`C:/Users/a/.conda/envs/tick_detection/python.exe`，torch2.5.0+cu118、torchvision0.20.0+cu118、RTX4060 Laptop 8GB。已有COCO和ImageNet ResNet50预训练缓存可离线使用。新模型应从通用预训练初始化，避免旧任务权重已经见过新的验证分组。
 

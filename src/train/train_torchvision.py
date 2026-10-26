@@ -153,26 +153,40 @@ class TickDetectionDataset(torch.utils.data.Dataset):#自定义数据集类
 
         # Apply transforms
         if self.transforms is not None:
-            img = self.transforms(img)
+            img, target = self.transforms(img, target)
 
         return img, target
 
     def __len__(self):
         return len(self.ids)
 
+class JointDetectionTransform:
+    """Apply geometric augmentation to image, boxes and masks together."""
+    def __init__(self, train=True, flip_probability=.5):
+        self.train = train
+        self.flip_probability = flip_probability
+        self.color = transforms.ColorJitter(brightness=.2, contrast=.2, saturation=.2)
+
+    def __call__(self, image, target):
+        from torchvision.transforms import functional as F
+        if not torch.is_tensor(image):
+            image = F.to_tensor(image)
+        target = {key: value.clone() if torch.is_tensor(value) else value
+                  for key, value in target.items()}
+        if self.train and torch.rand(()).item() < self.flip_probability:
+            width = image.shape[-1]
+            image = image.flip(-1)
+            boxes = target['boxes'].clone()
+            boxes[:, [0, 2]] = width - boxes[:, [2, 0]]
+            target['boxes'] = boxes
+            target['masks'] = target['masks'].flip(-1)
+        if self.train:
+            image = self.color(image)
+        return image, target
+
+
 def get_transform(train=True):
-    """Get transforms for training or validation."""
-    if train:
-        return transforms.Compose([#将PIL图像或NumPy数组转换为PyTorch张量
-            transforms.ToTensor(),
-            # 小目标鲁棒性增强：水平翻转 + 温和色彩抖动（检测模型 v2 新增）
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
-        ])
-    else:
-        return transforms.Compose([
-            transforms.ToTensor(),
-        ])
+    return JointDetectionTransform(train=train)
 
 def get_model(num_classes=2):
     """Create Mask R-CNN model with custom head for tick detection."""
@@ -207,53 +221,64 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch):
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
         #将每个目标字典里的所有张量放进对应设备
         # Forward pass
-        try:
-            loss_dict = model(images, targets)
+        loss_dict = model(images, targets)
 # 在 torchvision 的检测模型中，当传入 targets 时，前向传播不返回预测结果，而是直接返回一个损失字典。
 # 该字典包含 loss_classifier、loss_box_reg、loss_mask、loss_rpn_box、loss_rpn_cls 等多个分量。
-            losses = sum(loss for loss in loss_dict.values())#将所有分量损失求和，得到标量总损失
+        losses = sum(loss for loss in loss_dict.values())#将所有分量损失求和，得到标量总损失
+        if not torch.isfinite(losses):
+            raise FloatingPointError(f'Non-finite training loss at batch {batch_idx}')
 
-            # Backward pass
-            optimizer.zero_grad()#清空上一批次的梯度（防止累积）
-            losses.backward()#计算总损失对模型所有可训练参数的梯度。
-            optimizer.step()#根据梯度更新权重。
+        # Backward pass
+        optimizer.zero_grad()#清空上一批次的梯度（防止累积）
+        losses.backward()#计算总损失对模型所有可训练参数的梯度。
+        optimizer.step()#根据梯度更新权重。
 
-            total_loss += losses.item()
-            num_batches += 1
-            #累加总损失并计数，以便在函数末尾计算该 Epoch 的平均损失。
-            if batch_idx % 10 == 0:#每 10 个批次打印一次当前批次损失。
-                print(f"Epoch [{epoch}] Batch [{batch_idx}/{len(data_loader)}] Loss: {losses.item():.4f}")
+        total_loss += losses.item()
+        num_batches += 1
+        #累加总损失并计数，以便在函数末尾计算该 Epoch 的平均损失。
+        if batch_idx % 10 == 0:#每 10 个批次打印一次当前批次损失。
+            print(f"Epoch [{epoch}] Batch [{batch_idx}/{len(data_loader)}] Loss: {losses.item():.4f}")
 
-        except Exception as e:
-            print(f"Error in batch {batch_idx}: {e}")
-            continue
-
-    avg_loss = total_loss / num_batches if num_batches > 0 else 0
+    if not num_batches:
+        raise ValueError('Training loader has no batches')
+    avg_loss = total_loss / num_batches
     #计算一个完整训练周期平均损失
     print(f"Epoch {epoch} Average Loss: {avg_loss:.4f}")
     return avg_loss
 
 def validate(model, data_loader, device):
-    """Validate the model."""
-    #简单跑一个 batch 的推理
-    model.eval()
-    # Simple validation - just run inference
-    with torch.no_grad():
+    """Evaluate every validation batch; never return a fabricated metric."""
+    from train_detector_rebuild import match_detections, bbox_only_evaluation
+    tp = fp = fn = error = images_seen = 0
+    with torch.no_grad(), bbox_only_evaluation(model):
         for images, targets in data_loader:
             images = [img.to(device) for img in images]
             outputs = model(images)
-            break  # Just validate one batch for now
-    return 0.0
+            for output, target in zip(outputs, targets):
+                keep = (output['scores'] >= .5) & (output['labels'] == 1)
+                boxes = output['boxes'][keep].cpu().tolist()
+                scores = output['scores'][keep].cpu().tolist()
+                gt = target['boxes'].cpu().tolist()
+                a, b, c = match_detections(boxes, scores, gt)
+                tp += a; fp += b; fn += c
+                error += abs(len(boxes)-len(gt)); images_seen += 1
+    if not images_seen:
+        raise ValueError('Validation loader has no images')
+    precision = tp/(tp+fp) if tp+fp else 0.0
+    recall = tp/(tp+fn) if tp+fn else 0.0
+    return dict(tp=tp, fp=fp, fn=fn, precision=precision, recall=recall,
+                f1=2*precision*recall/(precision+recall) if precision+recall else 0.0,
+                count_mae=error/images_seen, images=images_seen)
 
 def main():
     """Main training function."""
     args = parse_args()
 
     # Override defaults with command line arguments
-    train_ann = args.train_ann or TRAIN_ANN
-    train_img = args.train_img or TRAIN_IMG
-    val_ann = args.val_ann or VAL_ANN
-    val_img = args.val_img or VAL_IMG
+    train_ann = args.train_ann or os.path.join(args.data_root, 'train', '_annotations.coco.json')
+    train_img = args.train_img or os.path.join(args.data_root, 'train')
+    val_ann = args.val_ann or os.path.join(args.data_root, 'valid', '_annotations.coco.json')
+    val_img = args.val_img or os.path.join(args.data_root, 'valid')
     num_classes = args.num_classes
     num_epochs = args.num_epochs
     batch_size = args.batch_size
@@ -332,11 +357,17 @@ def main():
     print("\nStarting training...")
     print("-" * 50)
 
+    best_f1 = -1.0
     for epoch in range(num_epochs):#迭代训练每个epoch
         print(f"\nEpoch {epoch+1}/{num_epochs}")
         train_loss = train_one_epoch(model, optimizer, train_loader, device, epoch+1)
         #训练一个epoch调用函数获得这个周期的平均损失
         lr_scheduler.step()
+        metrics = validate(model, val_loader, device)
+        print(f'Validation: {metrics}')
+        if metrics['f1'] > best_f1:
+            best_f1 = metrics['f1']
+            torch.save(model.state_dict(), model_path)
 
         # Save checkpoint
         if (epoch + 1) % 5 == 0:#每 5 个 epoch 保存检查点（包含模型和优化器状态）。
@@ -350,31 +381,9 @@ def main():
             print(f"Saved checkpoint: {checkpoint_path}")
 
     # Save final model
-    torch.save(model.state_dict(), model_path)#保存最终模型权重
-    print(f"\nTraining complete! Model saved to: {model_path}")
+    print(f"\nTraining complete! Best validation model saved to: {model_path}")
 
-    # Evaluate on test set (if annotation exists)
-    test_ann = val_ann.replace("valid", "test")  # Assume test folder mirrors valid
-    test_img = val_img.replace("valid", "test")
-
-    if os.path.exists(test_ann) and os.path.exists(test_img):#若测试集存在，则加载并对测试集进行推理
-        print("\nEvaluating on test set...")
-        test_dataset = TickDetectionDataset(test_ann, test_img, transforms=get_transform(False))
-        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, collate_fn=collate_fn)
-
-        model.eval()
-        detections = []
-        with torch.no_grad():
-            for i, (images, targets) in enumerate(test_loader):
-                images = [img.to(device) for img in images]
-                outputs = model(images)
-                detections.append(outputs)
-                if i % 50 == 0:
-                    print(f"Processed {i}/{len(test_loader)} test images")
-
-        print(f"\nTest set inference complete! Processed {len(test_dataset)} images.")
-    else:
-        print(f"\nTest set not found at {test_ann}, skipping evaluation.")
+    # Test evaluation is a separate, explicitly invoked step after model selection.
 
 if __name__ == "__main__":
     main()

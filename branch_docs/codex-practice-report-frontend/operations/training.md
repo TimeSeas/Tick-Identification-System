@@ -24,7 +24,25 @@ python src/train/train_detector_rebuild.py --split output/optimization_20261015/
 
 正式完整轮检查点可加`--resume <last_checkpoint.pth>`并增大epochs续训。训练从本地COCO通用预训练加载，不从现役v3初始化；正例分割标注缺失会快失败，不伪造bbox矩形mask。逐轮保存配置、损失、完整val结果、代理误报、best/last和失败信息。检查点选择只用val；calibration不参与训练或checkpoint选择。
 
-## 测试与模型切换
+## 双头识别训练
+
+先运行区域准备：
+
+```powershell
+python scripts/prepare_recognition_regions.py --data output/optimization_20261015/rebuild_20261024/data --out output/optimization_20261015/rebuild_20261024/regions
+```
+
+候选区域是现役v3的辅助定位，继承来源物种标签而非生成标签。COCO区域使用原始坐标与已有人工作物种无关的tick标签；无标注空图不作为非tick。代理负例保留来源类别，val/calibration的固定区域仅用来匹配部署输入，不参与训练。缓存每20图持久化，同配置可续跑。
+
+区域清单完整且目视检查后，先运行新目录中的partial试跑：
+
+```powershell
+python src/train/train_recognition_rebuild.py --split output/optimization_20261015/rebuild_20261024/regions/recognition_split.json --out output/optimization_20261015/rebuild_20261024/recognition_pilot --epochs 1 --batch-size 8 --accumulate 2 --amp --max-steps 4
+```
+
+正式训练去掉max-steps并使用新目录、epochs=15。骨干从本地ImageNet初始化，前两残差阶段冻结，小批BN保持预训练统计；存在性/物种分别监督，COCO未知物种不计算species损失。验证逐sample_type报告，best按二分类balanced accuracy与species macro-F1均值选择，calibration内容不读取。正式检查点只允许相同配置和相同总epochs恢复；partial不能续成正式训练。代码/清单哈希变化须新建实验。
+
+## 回归与模型切换
 
 ```powershell
 python -m unittest discover -s tests -v
