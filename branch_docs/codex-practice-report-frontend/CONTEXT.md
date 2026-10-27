@@ -41,3 +41,5 @@ rescue_calibration/冻结配置与policy；rescue_val/、rescue_detector_val/、
 Python C:/Users/a/.conda/envs/tick_detection/python.exe；PYTHONDONTWRITEBYTECODE=1、PYTHONIOENCODING=utf-8；一个GPU任务，训练前处理已知常驻后端，不能改活跃任务源/数据。恢复训练仅最新完整checkpoint和相同运行身份，partial不能续正式训练。
 
 提交时只逐路径暂存本任务。用户未提交的.gitignore、.learnings、web/backend/data.db、开发进程/web开发.md、毕业设计/毕业设计系统规划.md及output/taskbook_revision_20261024/保持原状，不加入提交。
+
+推送环境提示：Windows既有本机HTTP代理可为单次git进程同时作为http_proxy/https_proxy入口；不要将同一HTTP入口误用https scheme。未修改全局Git/系统代理，也未关闭TLS校验。最终代码/记录已成功推送（最终元数据提交见git log/远端校验）。

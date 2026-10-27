@@ -22,6 +22,8 @@ python -m uvicorn app.main:app --port 8000
 
 回滚到原v3检测版本另加DETECTOR_PATH=../../output/det_v3/mask_rcnn_ticks_v3.pth、INFERENCE_PROFILE_PATH=../../configs/inference_optimization.json，并保持原物种模型路径。恢复当前默认时清除这些覆盖，或显式设置当前四个模型与profile。Docker同理替换SPECIES_MODEL_PATH/INFERENCE_PROFILE_PATH（回原v3还需DETECTOR_PATH），不删除dbdata卷。模型总数由3增至4，仍使用原有依赖。
 
+GitHub推送若直连超时，而Windows已配置本机HTTP代理，可仅为该Git进程设置HTTP_PROXY和HTTPS_PROXY为同一个现有HTTP代理入口（读取urllib.request.getproxies()['http']，不硬编码端口、不打印认证信息）。HTTPS目标由CONNECT隧道保持TLS验证；不要把代理入口误改为https://，也不修改全局代理或关闭证书校验。本轮该方式成功推送最终提交，直连/错误代理scheme失败记录保留。
+
 旧安装/容器基础说明如下，仅作为历史参考；当前模型与环境变量以上方及Compose源码为准。
 
 > 2026-09-10 · 从零讲清：装什么、写什么、怎么跑、怎么维护、怎么用
