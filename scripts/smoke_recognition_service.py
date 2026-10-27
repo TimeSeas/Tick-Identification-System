@@ -14,6 +14,11 @@ from PIL import Image
 ROOT=Path(__file__).resolve().parents[1]
 
 
+def validate_smoke_database(database):
+    if not Path(database).resolve().is_relative_to((ROOT/'output/optimization_20261015').resolve()):
+        raise ValueError('Smoke database must be under the ignored experiment directory')
+
+
 def decode_result_image(value):
     if not value.startswith('data:image/jpeg;base64,'):
         raise ValueError('Expected the service JPEG data URI')
@@ -47,8 +52,7 @@ def main():
     p.add_argument('--device-label',choices=('cpu','cuda','unspecified'),default='unspecified')
     args=p.parse_args()
     database=args.database.resolve()
-    if not database.is_relative_to((ROOT/'output/optimization_20261015/rebuild_20261024').resolve()):
-        raise ValueError('Smoke database must be under the ignored experiment directory')
+    validate_smoke_database(database)
     if args.out.exists():
         raise ValueError('Preserve prior smoke evidence')
     with sqlite3.connect(database) as conn:

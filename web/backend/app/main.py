@@ -85,10 +85,13 @@ async def lifespan(app: FastAPI):
         detector = Detector(settings.detector_path, tile=settings.detect_tile)
         configure_detector(detector,profile.get('detector'))
         whole_path=verified_whole_reference(profile,settings.species_whole_model_path)
+        rescue=profile['species'].get('decision_mode')=='preserve_confirmed_rescue'
+        if rescue and (not whole_path or set(profile['species'].get('rescue_thresholds',{}))!=set(profile['species']['thresholds'])):
+            raise ValueError('补充识别必须绑定原模型和完整类别门槛')
         classifier = SpeciesClassifier(
             settings.species_model_path, settings.species_split_json,
             input_size=settings.species_input_size,
-            view_mode=profile['species']['view_mode'],whole_model_path=whole_path)
+            view_mode=profile['species']['view_mode'],whole_model_path=whole_path,return_reference=rescue)
         insect = InsectClassifier(
             settings.insect_model_path, settings.insect_split_json,
             view_mode=profile['insect']['view_mode'])

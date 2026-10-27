@@ -13,10 +13,12 @@ from app.services.classification_views import probabilities, prediction
 class SpeciesClassifier:
     """蜱种分类器"""
     def __init__(self, model_path: str, split_json: str, input_size: int = 448,
-                 view_mode: str = 'center', whole_model_path: str = None):
+                 view_mode: str = 'center', whole_model_path: str = None,
+                 return_reference: bool = False):
         self.device =('cuda' if torch.cuda.is_available() else 'cpu')
         self.input_size=input_size
         self.view_mode = view_mode
+        self.return_reference = return_reference
         with open(split_json,encoding='utf-8') as f:
             split=json.load(f)
         self.classes=sorted({d["label"] for d in split["train"]})
@@ -56,13 +58,27 @@ class SpeciesClassifier:
         result = self.predict(crop_rgb)
         return result['slug'], round(result['confidence'], 2)
 
-    def predict(self, crop_rgb: np.ndarray, whole_rgb=None, whole_weight=0.0) -> dict:
+    def _predict_scores(self, crop_rgb, whole_rgb=None, whole_weight=0.0):
         scores = probabilities(self.model, crop_rgb, self.input_size, self.device, self.view_mode)
+        whole = None
         if whole_rgb is not None and whole_weight > 0:
             whole = probabilities(getattr(self,'whole_model',None) or self.model,
                                   whole_rgb, self.input_size, self.device, self.view_mode)
             scores = (1 - whole_weight) * scores + whole_weight * whole
-        return prediction(scores, self.classes)
+        reference = None
+        if getattr(self,'return_reference',False):
+            if self.whole_model is None:
+                raise ValueError('Rescue mode requires the frozen original classifier')
+            reference = probabilities(self.whole_model,crop_rgb,self.input_size,self.device,self.view_mode)
+            if whole is not None:
+                reference=(1-whole_weight)*reference+whole_weight*whole
+        return scores,reference
+
+    def predict(self, crop_rgb: np.ndarray, whole_rgb=None, whole_weight=0.0) -> dict:
+        scores,reference=self._predict_scores(crop_rgb,whole_rgb,whole_weight)
+        result=prediction(scores,self.classes)
+        if reference is not None:result['reference_prediction']=prediction(reference,self.classes)
+        return result
         
 
 

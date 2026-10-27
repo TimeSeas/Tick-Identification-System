@@ -36,6 +36,8 @@ class Pipeline:
         self.region_thresholds = species.get('region_thresholds', self.thresholds)
         self.padding = species.get('region_padding', .15)
         self.whole_weight = species.get('single_image_weight', .5)
+        self.rescue_mode = species.get('decision_mode') == 'preserve_confirmed_rescue'
+        self.rescue_thresholds = species.get('rescue_thresholds',{})
         self.insect_thresholds = self.profile.get('insect', {}).get('thresholds', {})
         self.rejection = self.profile.get('rejection', {})
         self.cn_map = cn_map
@@ -70,6 +72,18 @@ class Pipeline:
             slug, probability = species['slug'], species['confidence']
             table = self.thresholds if single else self.region_thresholds
             threshold = table.get(slug, DEFAULT_THRESHOLD)
+            support_probability=probability
+            support_confirmed=probability>=threshold
+            if self.rescue_mode:
+                reference=species['reference_prediction']
+                reference_threshold=table.get(reference['slug'],DEFAULT_THRESHOLD)
+                support_probability=reference['confidence']
+                support_confirmed=support_probability>=reference_threshold
+                if support_confirmed:
+                    species=reference;slug=reference['slug'];probability=reference['confidence']
+                    threshold=reference_threshold
+                else:
+                    threshold=self.rescue_thresholds.get(slug,100.0001)
             d.update(confidence=round(probability, 2), threshold=round(threshold, 4),
                      candidate_slug=slug, candidate_cn=self.cn_map.get(slug, slug),
                      top_candidates=[dict(c, cn=self.cn_map.get(c['slug'], c['slug']))
@@ -89,7 +103,7 @@ class Pipeline:
                 continue
             whole_conflict = (whole_insect['slug'] != 'tick' and
                               whole_insect['confidence'] >= self.rejection.get('whole_non_tick', 90))
-            strong_box = (confirmed and probability >= self.rejection.get('species_support', 90)
+            strong_box = (support_confirmed and support_probability >= self.rejection.get('species_support', 90)
                           and d['score'] >= self.rejection.get('detector_support', .98))
             if whole_conflict and not strong_box:
                 continue

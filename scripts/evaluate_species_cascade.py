@@ -32,7 +32,7 @@ from evaluate_optimized_cascade import CachedClassifier
 
 class RecordingSpecies(SpeciesClassifier):
     def __init__(self,*args,**kwargs):
-        super().__init__(*args,**kwargs);self.cache={};self.records=[]
+        super().__init__(*args,**kwargs);self.cache={};self.records=[];self.reference_records=[]
 
     def predict(self,rgb,whole_rgb=None,whole_weight=0.):
         hasher=hashlib.sha256(rgb.tobytes())
@@ -41,13 +41,12 @@ class RecordingSpecies(SpeciesClassifier):
             hasher.update(str(whole_rgb.shape).encode());hasher.update(whole_rgb.tobytes())
         key=hasher.hexdigest()
         if key not in self.cache:
-            scores=probabilities(self.model,rgb,self.input_size,self.device,self.view_mode)
-            if whole_rgb is not None and whole_weight>0:
-                scores=(1-whole_weight)*scores+whole_weight*probabilities(
-                    getattr(self,'whole_model',None) or self.model,whole_rgb,
-                    self.input_size,self.device,self.view_mode)
-            self.cache[key]=(prediction(scores,self.classes),scores.tolist())
+            scores,reference=self._predict_scores(rgb,whole_rgb,whole_weight)
+            result=prediction(scores,self.classes)
+            if reference is not None:result['reference_prediction']=prediction(reference,self.classes)
+            self.cache[key]=(result,scores.tolist())
         result,scores=self.cache[key];self.records.append(scores)
+        self.reference_records.append(result.get('reference_prediction'))
         return copy.deepcopy(result)
 
 
@@ -65,6 +64,15 @@ def calibration_rows(row,scores,classes):
     if not scores:
         return [dict(path=row['path'],label=label,detected=False,probabilities=[0.]*len(classes))]
     return [dict(path=row['path'],label=label,probabilities=p) for p in scores]
+
+
+def rescue_calibration_rows(row,scores,references,classes,thresholds):
+    if len(scores)!=len(references):raise ValueError('Reference trace count mismatch')
+    eligible=[]
+    for probabilities,reference in zip(scores,references):
+        if reference is None:raise ValueError('Missing original classifier prediction')
+        if reference['confidence']<thresholds[reference['slug']]:eligible.append(probabilities)
+    return calibration_rows(row,eligible,classes)
 
 
 def validate_policy_binding(policy,profile_sha,model_sha,manifest_sha):
@@ -116,6 +124,9 @@ def main():
         (args.weights,profile['species']['model_sha256'])):
         if digest(path)!=expected:raise ValueError('Changed model '+str(path))
     reference=profile['species'].get('whole_reference')
+    rescue=profile['species'].get('decision_mode')=='preserve_confirmed_rescue'
+    if rescue and (not reference or args.threshold_policy!='global'):
+        raise ValueError('Rescue requires the original reference and global additional-confirmation calibration')
     if reference and reference['model_sha256']!=digest(old_path):
         raise ValueError('Whole-image reference must be the frozen original species model')
     data=json.loads(args.manifest.read_text('utf-8'));rows=load_rows(data,args.kind,args.subset)
@@ -169,24 +180,30 @@ def main():
     raw_new=[];chosen=None
     for name,path,config in (('old',old_path,baseline),('new',args.weights,profile)):
         species=RecordingSpecies(str(path),str(species_split),448,'center_full',
-            whole_model_path=str(old_path) if name=='new' and reference else None)
+            whole_model_path=str(old_path) if name=='new' and reference else None,
+            return_reference=name=='new' and rescue)
         pipeline=Pipeline(insect,cached,species,str(ROOT/'output/tick_species_clean_448/thresholds.csv'),{},config)
         def analyze(row):
-            cached.row=cache[row['path']];species.records=[]
+            cached.row=cache[row['path']];species.records=[];species.reference_records=[]
             with patch('app.services.pipeline.load_rgb_image',return_value=read(row)):
                 result=pipeline.analyze(b'')
             return dict(detections=result['detections'],insect=result['insect'])
         for i,(row,record) in enumerate(zip(rows,records),1):
             record[name]=analyze(row)
             if name=='new' and args.calibrate:
-                raw_new.extend(calibration_rows(row,species.records,species.classes))
+                if rescue:
+                    boxes=cached.row['full'] or cached.row['tiles']
+                    table=baseline['species']['thresholds' if len(boxes)==1 else 'region_thresholds']
+                    raw_new.extend(rescue_calibration_rows(row,species.records,species.reference_records,species.classes,table))
+                else:raw_new.extend(calibration_rows(row,species.records,species.classes))
             if i%20==0:save(args.out/'predictions.json',records[:i]);print(f'{name} {i}/{len(rows)}',flush=True)
         if name=='new' and args.calibrate:
             limit=.05
             if args.unknown_constraint=='relative_half':
                 old_unknown=[r for r in records if r['label'] not in species.classes]
                 limit=summarize(old_unknown,'old',False)['confirmed_images']/len(old_unknown)*.5
-            chosen=select_threshold(raw_new,max_unknown_acceptance=limit)
+            if rescue:limit=0.
+            chosen=select_threshold(raw_new,min_precision=1. if rescue else .95,max_unknown_acceptance=limit)
             if args.threshold_policy=='classwise':
                 fallback=min(baseline['species']['thresholds'].values())/100
                 chosen=calibrate_class_thresholds(raw_new,species.classes,fallback,
@@ -194,13 +211,19 @@ def main():
             save(args.out/'calibration_records.json',raw_new)
             if chosen:
                 table=chosen.get('thresholds',{c:chosen.get('threshold') for c in species.classes})
-                profile['species']['thresholds']={c:t*100 for c,t in table.items()}
-                profile['species']['region_thresholds']=dict(profile['species']['thresholds'])
+                if rescue:
+                    profile['species']['thresholds']=dict(baseline['species']['thresholds'])
+                    profile['species']['region_thresholds']=dict(baseline['species']['region_thresholds'])
+                    profile['species']['rescue_thresholds']={c:t*100 for c,t in table.items()}
+                else:
+                    profile['species']['thresholds']={c:t*100 for c,t in table.items()}
+                    profile['species']['region_thresholds']=dict(profile['species']['thresholds'])
                 for field in ('calibration','region_calibration','calibration_population','region_calibration_population'):
                     profile['species'].pop(field,None)
                 profile['species']['specialist_calibration']=dict(manifest_sha256=digest(args.manifest),
                     selection_population='pre-veto native proposals; folder species labels are proxies',
-                    unknown_constraint=args.unknown_constraint,max_unknown_acceptance=limit,**chosen)
+                    unknown_constraint='no_additional_unknown' if rescue else args.unknown_constraint,
+                    min_precision=1. if rescue else .95,max_unknown_acceptance=limit,**chosen)
                 save(args.out/'candidate_profile.json',profile)
                 pipeline=Pipeline(insect,cached,species,str(ROOT/'output/tick_species_clean_448/thresholds.csv'),{},profile)
                 for row,record in zip(rows,records):record['new']=analyze(row)

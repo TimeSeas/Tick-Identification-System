@@ -100,10 +100,11 @@
     "manifest_sha256": "8325bd47910d03cef5381b0c89b4a09ae788d326579ca502841f3fd15f791a21",
     "warm_start_sha256": "e5301d269a45e0925d21f4573a503b8cc112834374e077db360595163859ab56",
     "artifact_root": "output/optimization_20261015/species_20261027",
-    "status": "training_complete_dual_expert_classwise_calibration_in_progress_default_unchanged",
-    "tests": 84,
+    "status": "full_replacement_validation_failed_conservative_rescue_calibration_in_progress_default_unchanged",
+    "tests": 90,
     "selected_epoch": 6,
     "weights_sha256": "d6605ee6e97f7f13e08bc44e036f2841b2bf3b9be3724efe75e2a8347b1c9f00",
-    "code_checkpoint": "50baa109"
+    "code_checkpoint": "c470cce5",
+    "unknown_rejection_status": "not_solved_reference_false_confirmations_remain"
   }
 }
