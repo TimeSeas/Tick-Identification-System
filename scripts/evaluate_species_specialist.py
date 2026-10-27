@@ -32,7 +32,8 @@ def gate_metrics(records,threshold):
     known=defaultdict(list);unknown=defaultdict(list);accepted=correct=0
     for row in records:
         scores=np.asarray(row['probabilities']);prediction=int(scores.argmax())
-        accept=bool(row.get('detected',True) and scores[prediction]>=threshold)
+        cutoff=threshold[prediction] if isinstance(threshold,dict) else threshold
+        accept=bool(row.get('detected',True) and scores[prediction]>=cutoff)
         if row['label']<0:unknown[row['path']].append(accept)
         else:
             right=prediction==row['label']

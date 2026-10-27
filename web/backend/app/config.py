@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     db_url: str = "sqlite:///./data.db"          # 数据库连接串
     detector_path: str = "../../output/optimization_20261015/rebuild_20261024/detector_v3_finetune_run01/frozen_detector.pth"  # Codex分支微调第2轮；原v3保留作回滚
     species_model_path: str = "../../output/tick_species_clean_448/model/tick_species_best.pth"
+    species_whole_model_path: str = "../../output/tick_species_clean_448/model/tick_species_best.pth"  # 可选整图专家，配置须绑定SHA
     thresholds_path: str = "../../output/tick_species_clean_448/thresholds.csv"
     cn_table_path: str = "../../data/tick_species/物种中文名对照表.csv"
     species_split_json: str = "../../data/tick_species/split_clean.json"

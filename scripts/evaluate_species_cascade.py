@@ -24,6 +24,7 @@ from app.services.classification_views import probabilities,prediction
 from app.services.pipeline import Pipeline
 from evaluate_species_specialist import select_threshold,gate_metrics
 from prepare_species_specialist import digest,save
+from species_threshold_calibration import calibrate_class_thresholds
 from evaluate_recognition_cascade import CachedDetector,summarize as summarize_boxes
 from evaluate_detector_labelled_images import summarize,summarize_binary
 from evaluate_optimized_cascade import CachedClassifier
@@ -43,7 +44,8 @@ class RecordingSpecies(SpeciesClassifier):
             scores=probabilities(self.model,rgb,self.input_size,self.device,self.view_mode)
             if whole_rgb is not None and whole_weight>0:
                 scores=(1-whole_weight)*scores+whole_weight*probabilities(
-                    self.model,whole_rgb,self.input_size,self.device,self.view_mode)
+                    getattr(self,'whole_model',None) or self.model,whole_rgb,
+                    self.input_size,self.device,self.view_mode)
             self.cache[key]=(prediction(scores,self.classes),scores.tolist())
         result,scores=self.cache[key];self.records.append(scores)
         return copy.deepcopy(result)
@@ -87,6 +89,8 @@ def main():
     p.add_argument('--profile',type=Path,required=True)
     p.add_argument('--out',type=Path,required=True)
     p.add_argument('--calibrate',action='store_true')
+    p.add_argument('--unknown-constraint',choices=('absolute5','relative_half'),default='absolute5')
+    p.add_argument('--threshold-policy',choices=('global','classwise'),default='global')
     p.add_argument('--policy',type=Path,help='Frozen policy record mandatory for specialist holdout')
     p.add_argument('--detector-cache',type=Path,help='This evaluator cache directory, identities checked')
     args=p.parse_args();torch.set_num_threads(4)
@@ -111,6 +115,9 @@ def main():
         (old_path,baseline['species']['model_sha256']),(insect_path,baseline['insect']['model_sha256']),
         (args.weights,profile['species']['model_sha256'])):
         if digest(path)!=expected:raise ValueError('Changed model '+str(path))
+    reference=profile['species'].get('whole_reference')
+    if reference and reference['model_sha256']!=digest(old_path):
+        raise ValueError('Whole-image reference must be the frozen original species model')
     data=json.loads(args.manifest.read_text('utf-8'));rows=load_rows(data,args.kind,args.subset)
     if args.kind=='specialist' and args.subset=='holdout':
         if args.calibrate or not args.policy:
@@ -119,6 +126,11 @@ def main():
         validate_policy_binding(frozen,digest(args.profile),digest(args.weights),digest(args.manifest))
         for item in frozen['artifacts']:
             if digest(Path(item['path']))!=item['sha256']:raise ValueError('Frozen calibration evidence changed')
+        if frozen['evaluator_sha256']!=digest(__file__):raise ValueError('Frozen evaluator source changed')
+        if frozen['calibrator_sha256']!=digest(ROOT/'scripts/species_threshold_calibration.py'):
+            raise ValueError('Frozen calibrator source changed')
+        for name,expected in frozen['service_sources'].items():
+            if digest(ROOT/'web/backend/app/services'/name)!=expected:raise ValueError('Frozen inference source changed')
     for row in rows:
         if digest(ROOT/row['path'])!=row['sha256']:raise ValueError('Changed image '+row['path'])
     cache_identity=dict(manifest_sha256=digest(args.manifest),kind=args.kind,subset=args.subset,
@@ -130,6 +142,7 @@ def main():
         profile_sha256=digest(args.profile),baseline_profile_sha256=digest(baseline_path),
         species_split_sha256=digest(species_split),insect_split_sha256=digest(insect_split),
         frozen_policy_sha256=digest(args.policy) if args.policy else None,
+        calibrator_sha256=digest(ROOT/'scripts/species_threshold_calibration.py'),
         sources={name:digest(ROOT/'web/backend/app/services'/name) for name in
             ('pipeline.py','classifier.py','classification_views.py','insect_classifier.py')}))
     def read(row):
@@ -155,7 +168,8 @@ def main():
     records=[dict(path=r['path'],label=r.get('label'),**({'binary_label':r['binary_label']} if args.kind=='binary' else {})) for r in rows]
     raw_new=[];chosen=None
     for name,path,config in (('old',old_path,baseline),('new',args.weights,profile)):
-        species=RecordingSpecies(str(path),str(ROOT/'data/tick_species/split_clean.json'),448,'center_full')
+        species=RecordingSpecies(str(path),str(species_split),448,'center_full',
+            whole_model_path=str(old_path) if name=='new' and reference else None)
         pipeline=Pipeline(insect,cached,species,str(ROOT/'output/tick_species_clean_448/thresholds.csv'),{},config)
         def analyze(row):
             cached.row=cache[row['path']];species.records=[]
@@ -168,14 +182,25 @@ def main():
                 raw_new.extend(calibration_rows(row,species.records,species.classes))
             if i%20==0:save(args.out/'predictions.json',records[:i]);print(f'{name} {i}/{len(rows)}',flush=True)
         if name=='new' and args.calibrate:
-            chosen=select_threshold(raw_new);save(args.out/'calibration_records.json',raw_new)
+            limit=.05
+            if args.unknown_constraint=='relative_half':
+                old_unknown=[r for r in records if r['label'] not in species.classes]
+                limit=summarize(old_unknown,'old',False)['confirmed_images']/len(old_unknown)*.5
+            chosen=select_threshold(raw_new,max_unknown_acceptance=limit)
+            if args.threshold_policy=='classwise':
+                fallback=min(baseline['species']['thresholds'].values())/100
+                chosen=calibrate_class_thresholds(raw_new,species.classes,fallback,
+                    min_threshold=fallback,max_unknown_acceptance=limit)
+            save(args.out/'calibration_records.json',raw_new)
             if chosen:
-                profile['species']['thresholds']={c:chosen['threshold']*100 for c in species.classes}
+                table=chosen.get('thresholds',{c:chosen.get('threshold') for c in species.classes})
+                profile['species']['thresholds']={c:t*100 for c,t in table.items()}
                 profile['species']['region_thresholds']=dict(profile['species']['thresholds'])
                 for field in ('calibration','region_calibration','calibration_population','region_calibration_population'):
                     profile['species'].pop(field,None)
                 profile['species']['specialist_calibration']=dict(manifest_sha256=digest(args.manifest),
-                    selection_population='pre-veto native proposals; folder species labels are proxies',**chosen)
+                    selection_population='pre-veto native proposals; folder species labels are proxies',
+                    unknown_constraint=args.unknown_constraint,max_unknown_acceptance=limit,**chosen)
                 save(args.out/'candidate_profile.json',profile)
                 pipeline=Pipeline(insect,cached,species,str(ROOT/'output/tick_species_clean_448/thresholds.csv'),{},profile)
                 for row,record in zip(rows,records):record['new']=analyze(row)
@@ -198,7 +223,11 @@ def main():
             'Unknown no-detection images are in the false-confirmation denominator; report detection coverage separately']))
     if args.calibrate and chosen:
         frozen=dict(profile_sha256=digest(args.out/'candidate_profile.json'),candidate_sha256=digest(args.weights),
-            manifest_sha256=digest(args.manifest),artifacts=[dict(path=str(path.resolve()),sha256=digest(path))
+            manifest_sha256=digest(args.manifest),evaluator_sha256=digest(__file__),
+            calibrator_sha256=digest(ROOT/'scripts/species_threshold_calibration.py'),
+            service_sources={name:digest(ROOT/'web/backend/app/services'/name) for name in
+                ('pipeline.py','classifier.py','classification_views.py','insect_classifier.py','detector.py')},
+            artifacts=[dict(path=str(path.resolve()),sha256=digest(path))
                 for path in (args.out/'report.json',args.out/'calibration_records.json',args.out/'metadata.json')])
         save(args.out/'frozen_policy.json',frozen)
     print(json.dumps(reports,ensure_ascii=False),flush=True)

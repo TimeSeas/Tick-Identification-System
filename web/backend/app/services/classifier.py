@@ -13,7 +13,7 @@ from app.services.classification_views import probabilities, prediction
 class SpeciesClassifier:
     """蜱种分类器"""
     def __init__(self, model_path: str, split_json: str, input_size: int = 448,
-                 view_mode: str = 'center'):
+                 view_mode: str = 'center', whole_model_path: str = None):
         self.device =('cuda' if torch.cuda.is_available() else 'cpu')
         self.input_size=input_size
         self.view_mode = view_mode
@@ -33,6 +33,7 @@ class SpeciesClassifier:
             normalize
         ])
         self.model=self._build_model(model_path)
+        self.whole_model=self._build_model(whole_model_path) if whole_model_path else None
         print(f"[蜱虫分类] 模型加载完成，设备: {self.device}，类别数: {self.num_classes}")
 
     def _build_model(self, model_path:str):
@@ -58,7 +59,8 @@ class SpeciesClassifier:
     def predict(self, crop_rgb: np.ndarray, whole_rgb=None, whole_weight=0.0) -> dict:
         scores = probabilities(self.model, crop_rgb, self.input_size, self.device, self.view_mode)
         if whole_rgb is not None and whole_weight > 0:
-            whole = probabilities(self.model, whole_rgb, self.input_size, self.device, self.view_mode)
+            whole = probabilities(getattr(self,'whole_model',None) or self.model,
+                                  whole_rgb, self.input_size, self.device, self.view_mode)
             scores = (1 - whole_weight) * scores + whole_weight * whole
         return prediction(scores, self.classes)
         

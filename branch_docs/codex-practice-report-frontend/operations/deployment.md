@@ -1,8 +1,10 @@
 # 基于Mask R-CNN的蜱虫识别系统的设计与实现 Docker部署指南
 
-## 当前Codex分支版本（2026-10-26）
+## 当前Codex分支版本（2026-10-27）
 
-当前本地Settings与Compose默认已改为：
+当前蜱种专项仍在离线验证，默认保留上一版。8000暂用CPU后端PID36776，为唯一GPU评估让出显存；前端5174 PID36224不变。实际临时服务状态在output/optimization_20261015/species_20261027/services.json，旧browser目录的services.json仅是10月26日历史，不能照旧PID操作。离线结束再恢复CUDA。
+
+当前本地Settings与Compose默认为：
 
 - 检测：`output/optimization_20261015/rebuild_20261024/detector_v3_finetune_run01/frozen_detector.pth`，SHA256 `9e7a3a9b9cb32df87a37be71d85068f98a28d17bb61f828354534d4e95ed8b7c`。
 - 配置：`configs/inference_detector_balanced.json`，SHA256 `6164cdf41a781fa3fcc43ebc5990ad460a238b3ff4efc6bd167298fa8a2e86d0`。检测门槛.3、1024/1200、IoU=.3；原28类448物种与昆虫模型/校准不变。

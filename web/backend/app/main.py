@@ -30,6 +30,13 @@ def verify_artifact(path, expected_hash):
         raise ValueError('模型或数据划分与校准配置不一致，请重新评估并校准')
 
 
+def verified_whole_reference(profile,path):
+    reference=profile['species'].get('whole_reference')
+    if not reference:return None
+    verify_artifact(path,reference['model_sha256'])
+    return path
+
+
 def configure_detector(detector, config):
     """Reject unsupported geometry and apply the evaluated acceptance threshold."""
     if not config:
@@ -77,10 +84,11 @@ async def lifespan(app: FastAPI):
             raise ValueError('检测权重与实验配置不一致')
         detector = Detector(settings.detector_path, tile=settings.detect_tile)
         configure_detector(detector,profile.get('detector'))
+        whole_path=verified_whole_reference(profile,settings.species_whole_model_path)
         classifier = SpeciesClassifier(
             settings.species_model_path, settings.species_split_json,
             input_size=settings.species_input_size,
-            view_mode=profile['species']['view_mode'])
+            view_mode=profile['species']['view_mode'],whole_model_path=whole_path)
         insect = InsectClassifier(
             settings.insect_model_path, settings.insect_split_json,
             view_mode=profile['insect']['view_mode'])
@@ -112,6 +120,7 @@ async def lifespan(app: FastAPI):
             Path(settings.inference_profile_path).read_bytes()).hexdigest(),
             detector_model_sha256=detector_hash,
             species_model_sha256=profile['species']['model_sha256'],
+            species_whole_model_sha256=profile['species'].get('whole_reference',{}).get('model_sha256'),
             insect_model_sha256=profile['insect']['model_sha256'],
             presence_model_sha256=profile.get('recognition', {}).get('model_sha256'))
     except Exception as e:
