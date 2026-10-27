@@ -2,7 +2,7 @@
 
 本目录仅对应 `codex/practice-report-frontend`，遵循根AGENTS.md和用户对该分支的全程开发授权。用户允许架构修改、重新训练和同步文档；无需对已授权优化重复请求同意。不得修改或合并主分支，不使用Claude Code。
 
-2026-10-26本分支当前默认为微调第2轮+`configs/inference_detector_balanced.json`（检测.3），原v3用于回滚；根AGENTS概述与原文档仍描述历史基线，当前部署以本目录CONTEXT和operations/deployment.md为准。不要根据历史mAP给新权重沿用指标。
+2026-10-27默认configs/inference_species_rescue.json：M1仍是微调第2轮balanced(.3)，增加28类448区域专项模型；原物种模型作为整图/参考分类器保留。原确认保留，仅补充原不确定结果，M1强支持只用原参考预测；总计4份权重常驻。SPECIES_WHOLE_MODEL_PATH是原物种权重的独立环境变量，必须按profile SHA核验。原single/region阈值用于reference，rescue_thresholds用于专项补充。原balanced配置和原物种权重可回滚。当前部署以CONTEXT与operations/deployment.md为准，不沿用历史mAP或声称未知识别已解决。
 
 ## 版本和原文隔离
 

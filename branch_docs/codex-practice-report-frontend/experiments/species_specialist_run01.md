@@ -1,58 +1,69 @@
-# 蜱种专项与未知物种暴露 run01
+# 蜱种专项 run01 与保守补充识别（2026-10-27）
 
-登记2026-10-27。用户已批准直接优化，计划[species_specialist_20261027](../plans/species_specialist_20261027.md)。代码基线5f89944b，新增实现以运行config源文件SHA为准。现役检测器/昆虫分类和balanced配置保留，未替换线上物种模型。
+用户批准在codex/practice-report-frontend全程优化；独立于实践报告，不修改或合并主分支。计划[species_specialist_20261027](../plans/species_specialist_20261027.md)。源码阶段50baa109（训练/评估）、c470cce5（双专家与classwise）、dc0c40ad（最终补充路径），均已推送；最后默认/记录见VERSIONS及git log。
 
-产物根`output/optimization_20261015/species_20261027/`，原数据/权重/实验不覆盖。
+最终采用**保留原确认、只补充待确认**，不是直接替换全部物种判断。检测器与昆虫模型不变，增加单独区域物种模型，总计4份权重常驻。未知误确认目标未达成，如实保留该限制。
 
-## 数据已冻结
+## 冻结数据与训练
 
-清单`data/manifest.json`，SHA256 `8325bd47910d03cef5381b0c89b4a09ae788d326579ca502841f3fd15f791a21`。
+根output/optimization_20261015/species_20261027/，原图片/权重/划分不覆盖、不推送。data/manifest.json SHA8325bd47910d03cef5381b0c89b4a09ae788d326579ca502841f3fd15f791a21。
 
-|子集|已知物种视图|未覆盖物种图片|未覆盖物种数|
-|---|---|---|---|
-|train|5459（2889全图+2570区域）|145|31|
-|val|918|53|10|
-|calibration|935|26|10|
-|holdout|0|24|10|
+|子集|已知图片/视图|未知图片/物种|
+|---|---|---|
+|train|2889 / 5459（2570 ROI）|145 / 31|
+|val|486 / 918|53 / 10|
+|calibration|492 / 935|26 / 10|
+|holdout|0|24 / 10|
 
-原已知训练/验证/校准分组继续保留，旧物种权重见过部分来源，比较只能作开发证据。未知物种集合按物种隔离，旧80覆盖的物种全部排除训练；筛查18967历史引用、SHA/photo/observation组和dHash≤4，隔离158张候选，190引用缺失/不可读，不能证明完全独立。未知图片均tick_label=1，仅用于物种拒识，不是非蜱虫。
+旧80的物种全部排除新增训练；未知物种跨4子集隔离，tick_label=1，仅做物种分布均匀化，不当非蜱虫。筛查18967历史引用、SHA/photo/observation与dHash≤4，隔离158候选，190引用缺失/不可读，不能证明完全独立。167旧错误只保存在review_queue，不混入训练。原known分组保留，原权重见过部分known val来源，所有known结果是开发/回顾。
 
-`data/review_queue.json`保存167个旧val或浏览器问题，仅复核，不移入训练；包含15×15额外小框。区域来自旧检测器辅助定位，不等于新人工真值；目录物种标签不自动改写。
+已看known_roi_preview_01/02及unknown_preview_01/02，覆盖28已知/31未知种各一例；未知数据存在标本瓶/标签及过小主体，全图降置信度不能代表实际ROI拒识有效。epoch01_comparison与最终rescue_visual_comparison均包含改善和失败。
 
-## 实现与预检
+原ResNet50/28类448权重明确warm-start，SHA e5301d269a45e0925d21f4573a503b8cc112834374e077db360595163859ab56。冻结layer1/2与BN统计，训练layer3/4/fc；已知CE（平滑.05）+.5蒸馏T2，未知.2均匀化；已知/未知采样质量.85/.15，平方根频率平衡；lr2e-5、AdamW、batch8/accumulate2、AMP、workers2、448、.15上下文、训练随机center/full，验证mean(center/full)。
 
-单独ResNet50原物种权重显式warm-start，SHA256 `e5301d269a45e0925d21f4573a503b8cc112834374e077db360595163859ab56`。448、上下文.15、训练随机center/full视图，验证mean(center/full)；冻结layer1/2及BN统计，训练layer3/4/fc。已知CE+.5蒸馏（T=2），未知.2均匀化；已知/未知采样质量.85/.15，平方根频率平衡。AdamW lr2e-5，batch8/accumulate2，AMP/workers2，最多6轮/patience3。
+pilot仅4批、partial，top1=.839869，不能部署或续成正式训练。run01完整6轮，0 AMP跳过，第6轮按预定val分数选中。checkpoint SHA94e6c6ac6fe22c9ad6763531cf9634753b8085e715dec1b768d3b7522054be50；导出component_calibration/candidate.pth SHA d6605ee6e97f7f13e08bc44e036f2841b2bf3b9be3724efe75e2a8347b1c9f00。原始每轮预测、完整日志、全部检查点与training_summary保留。
 
-已独立只读审查，修复两项P2：启动/恢复核验train/val原图SHA；仅允许恢复最新完整日志轮次，拒绝会覆盖未来产物的回退。69项unittest回归通过，包含均匀化梯度、未知物种隔离和这两项复现。calibration/holdout不进入训练器。
+组件val918已知视图top1 .863834→.905229、macroF1 .857807→.895310；53未知最大概率均值.651945→.137514。cal935视图top1 .858824→.875936；teacher ROI top1 .747178→.794582，但single_proxy融合 .965447→.943089。该差异解释为什么不按混合视图均值直接替换。
 
-## 当前状态
+## 候选演进与否决
 
-准备pilot：4训练步+完整val，只检查损失、类别/预处理、显存和保存链路，partial产物不能部署或恢复成正式训练。通过后另目录正式训练，不在试跑输出上覆盖。训练期间只暂停本任务的CUDA后端；前端及其他项目服务不操作，后端可暂以CPU保持网页可用。实际进程、日志与下一步在CONTEXT更新。
+所有数均为图片文件夹标签下的覆盖，不是逐框物种真值。实际校准使用当前M1原生全图/空全图tiles与真实Pipeline，不把旧原v3结果混作本轮基线。
 
-## 已发生的训练与输入检查
+|方案/产物|已知正确候选|已知正确确认|错误确认图片|未知确认|结论|
+|---|---|---|---|---|---|
+|直接替换 cascade_calibration（492已知/26未知）|448→443|327→170|4→0|6→1|拒绝，不能大量拒识换安全|
+|双专家global dual_calibration|448→458|327→233|4→0|6→3|拒绝|
+|classwise_run02 calibration|448→458|327→328|4→4|6→3|仍需val|
+|classwise完整val（486已知/53未知）|448→453|334→327|1→4|2→1|拒绝，完整val退步|
+|最终rescue calibration|448→458|327→333|4→4|6→6|继续冻结验证|
+|最终rescue完整val|448→453|334→342|1→1|2→2|采用保守补充|
 
-pilot完成4步，未发生AMP跳过；top1=.839869、macroF1=.841359，低于原模型，partial仅验证链路。正式run01另目录运行，exec会话98081，run01.log，原始baseline/每轮预测和检查点保留。第1完整轮701批、0跳过，known top1=.883442、macroF1=.891377，原模型分别.863834/.857807；未知53图平均最大概率.651945→.247461、≥.5张数34→8。还不是系统提升结论。
+双专家为新ROI+原整图各.5，多框只用新ROI；classwise初轮DP按提案重复计收益有缺陷，留在dual_classwise_calibration作历史。run02修复为来源去重、惩罚错误来源，仍完整val失败，未切默认。其cpu_smoke虽然接口通过，也不能当最终方案证据。
 
-训练输入可视化已检查known_roi_preview_01/02.jpg（28种各一ROI）及unknown_preview_01/02.jpg（31种各一全图）。未知样本有标本瓶/标本标签及小目标全图，均匀化可能学来源背景；当前不改运行中的清单，后续必须用真实检测ROI/融合验证，不能用这批全图降置信度声称解决线上未知蜱种。
+最终decision_mode=preserve_confirmed_rescue：原模型的同一ROI/整图参考概率和原single/region表决定是否保留原确认；原待确认时才用新ROI+原整图补充。M1 strong_box永远只用原reference概率/确认，新增确认不能复活框。
 
-后端已临时CPU运行，PID36776；原CUDA进程27396已核验后停止。正式训练结束和离线GPU评估完成再恢复。前端36224与其他项目进程未操作。
+仅calibration原待确认提案选全局补充阈值.8160640001296997（81.6064%），要求新增经验precision100%、新增未知确认0；原确认来源不抬高新增精度。rescue_calibration/frozen_policy.json绑定完整profile、主/参考模型、manifest、校准报告/原始记录、evaluator/calibrator/service源码SHA。新holdout只在冻结后跑一次，没有反向调参。最终configs/inference_species_rescue.json与冻结profile字节相同，SHA b19a43ab4a7712b575a46bd9aad1f7fbdf600c7105d9a204b1c338204b955231。
 
-专项评估工具已实现组件与真实级联两层。真实级联复用Detector/SpeciesClassifier/Pipeline，记录pre-veto原始概率，仅calibration选全局种名门槛；漏检图也进入正确确认覆盖/未知误确认分母，候选只读缓存绑定模型/数据/预处理和源码SHA。校准后的精度须在veto后另核，不把pre-veto≥95%当服务保证。holdout必须提供独立frozen_policy.json，绑定模型/完整profile/manifest及校准报告、原始概率、metadata文件SHA；split与阈值类别集合按服务启动要求核验。79项测试通过。
+## 完整回归与未解决风险
 
-## 完整训练与第一校准结论
+- 495开发图（188有框正例+307来源代理非蜱虫）：tp190/fp23/fn25、precision .892019、recall .883721、F1 .887850、计数MAE .127660、代理检出32/307，全部新旧一致。代理负例中已确认蜱种0→0。
+- 109回顾：TP52/FN3/FP13/TN41，保持不变。
+- 旧80未知种回顾：检出66、错误确认9，新旧一致。
+- 新冻结24图/10种未知留出：检出19、错误确认4，新旧一致；没有新增确认，也没有减少已有错误。24图已查看，后续只作回顾，不能再称新未见评估。
+- frozen_rescue_checks.json逐条核对所有5个集合的bbox/score与原已确认种名、概率、门槛一致。未知类无新增确认。独立审查另做540组CPU属性组合，保持框及原确认。
 
-run01完整6轮，0 AMP跳过，第6轮按预定val选择，checkpoint SHA `94e6c6ac6fe22c9ad6763531cf9634753b8085e715dec1b768d3b7522054be50`。原始导出candidate.pth SHA `d6605ee6e97f7f13e08bc44e036f2841b2bf3b9be3724efe75e2a8347b1c9f00`，训练汇总training_summary.json。val918已知视图top1 .863834→.905229、macroF1 .857807→.895310；53未知最大概率均值.651945→.137514。cal935已知视图top1 .858824→.875936；未知26均值.518184→.306314。全图/ROI融合不能由这些均值替代。
+known来源存在历史重用，未知留出小且无已知/非蜱虫对照；190缺失引用限制独立性。图片目录不等于所有框都有该种，无独立逐框物种/计数真值；不声称整体所有识别能力都提高。**原未知误确认9/80及4/24仍在**，该轮未知拒识目标未完成。
 
-第一实际校准cascade_calibration/：M1当前balanced，518图片=492已知+26未知。绝对未知误确认≤5%选全局阈值.887188，已知正确候选448→443、正确确认327→170（覆盖.664634→.345528），未知确认6→1，检出20/26不变。**拒绝接入**，不能以大量待确认换取表面安全。
+## 接入、真实HTTP与浏览器
 
-基于val既有概率，原全图+原ROI正确467/486，新全图+新ROI463/486，新ROI+原全图470/486，决定新增双专家候选。dual_calibration/当前运行，约束未知误确认相对旧策略至少减半，并在完整回归检查正确候选/确认覆盖。新的24图holdout尚未使用。详见计划ruling。
+Settings/Compose同步主物种路径、profile及SPECIES_WHOLE_MODEL_PATH；原权重与balanced profile保留回滚。90项unittest通过，覆盖损失/未知隔离、图像SHA/恢复覆盖、numpy契约、来源分母/去重、冻结策略/split身份、原确认与框保持及测试DB边界。Docker compose config通过，未构建/实跑。
 
-代码50baa109已本地提交；首次GitHub推送443超时，未称远程完成，稍后重试。不写入用户已修改的.learnings，网络错误在本分支文档记录。
+cpu_rescue_smoke/与gpu_rescue_smoke/均在新空测试库通过健康、非法MIME/损坏图片/10MB拒绝且不入库、JPEG可解码、真实补充确认、历史详情与四模型版本一致。CPU单图23.3933秒；CUDA单图1.2866秒，非平均/受控对比。
 
-## 后续否决与补充候选
+浏览器固定开发案例browser_cases.json：太平洋硬蜱原48.9%待确认→85.9%确认；肩板硬蜱39.5%待确认、候选/Top3保留；蚜虫86.7%兜底、无蜱虫框。首次蚜虫图5494×3662超过20MP被明确拒绝未入库，原图不改，另选有效尺寸Image_46完成；这是可用性边界，不掩盖失败。3次有效网页上传+1次HTTP，共4条记录，API逐条核验同一profile。browser_report.json、完整UI文本、browser_confirmed_verified.png及改善/失败9例对照均保留。部分紧接动画的中间截图仅作过程，最终以verified截图和完整UI文本为准。
 
-双专家global校准threshold=.799308896：正确候选448→458但正确确认327→233，拒绝。classwise来源去重run02：cal已知正确候选448→458、正确确认327→328、错误确认图片4→4；26未知误确认6→3，检出20不变。随后完整val539图（486已知+53未知）已知正确候选448→453、正确确认334→327、错误确认图片1→4，未知误确认2→1（检出20不变）。**完整val失败，未切默认**。
+当前后端8000 PID32036为CUDA，前端5174 PID36224；8016临时CPU已停止，无离线任务。DB为browser_rescue.db；原数据库与前轮20条库保留。启动状态services.json，进程操作前现场核验。训练/评估/图片/数据库均在ignored目录，不推送。
 
-其CPU API验证cpu_smoke/通过，单图14.134秒，四模型SHA、原整图模型身份、JPEG/历史及非法上传均核验，不能称受控速度对比；该HTTP仅属于已否决classwise方案。8016 PID4528停止。新smoke脚本允许本轮ignored目录的空测试数据库，拒绝原web/backend/data.db及目录穿越，仍要求空库。
+## 审查与后续
 
-当前rescue_calibration/正在运行：原模型已确认结果严格保留，学生只补充待确认；M1框保留规则固定到原模型概率/确认。仅calibration中原不确定提案选择全局门槛，新增经验precision100%、新增未知确认0；原未知误确认仍存在，不能说未知拒识已完成。90项unittest通过，已读审查正在做框/原确认属性矩阵。首次推送c470cce5连接重置，50baa109先前已成功推送；收尾再重试。
+重要问题均先复现再修复：图片原地变更、旧checkpoint覆盖未来、known漏检分母、numpy契约、冻结模型/阈值/split、重复提案收益。没有未处理P1/P2。未知自然图/teacher框需人工复核并补同域区域标注；将标本瓶/标签单列。下一轮未知评估必须换新冻结来源，不针对旧80或本轮24选参。超20MP自动缩小属于后续可用性工作。

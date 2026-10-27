@@ -1,30 +1,28 @@
-# 基于Mask R-CNN的蜱虫识别系统的设计与实现 Docker部署指南
+# 基于Mask R-CNN的蜱虫识别系统的设计与实现：分支运行与回滚
 
-## 当前Codex分支版本（2026-10-27）
+## 当前分支默认（2026-10-27）
 
-当前蜱种专项仍在离线验证，默认保留上一版。8000暂用CPU后端PID36776，为唯一GPU评估让出显存；前端5174 PID36224不变。实际临时服务状态在output/optimization_20261015/species_20261027/services.json，旧browser目录的services.json仅是10月26日历史，不能照旧PID操作。离线结束再恢复CUDA。
+Settings与Compose已同步到configs/inference_species_rescue.json（SHA b19a43ab4a7712b575a46bd9aad1f7fbdf600c7105d9a204b1c338204b955231）。M1保留balanced(.3)，新物种ROI模型是output/optimization_20261015/species_20261027/component_calibration/candidate.pth（SHA d6605ee6e97f7f13e08bc44e036f2841b2bf3b9be3724efe75e2a8347b1c9f00）。原物种模型仍参与整图及reference，不可删除。
 
-当前本地Settings与Compose默认为：
+新增环境变量SPECIES_WHOLE_MODEL_PATH，默认../../output/tick_species_clean_448/model/tick_species_best.pth；Compose为/app/models/tick_species_clean_448/model/tick_species_best.pth。两份物种模型使用同一28类split、448输入、center_full与.15上下文。原single/region表应用于reference；rescue_thresholds=81.6064%应用于新增补充。原已确认结论保留；M1保留规则只用原reference，不因新增确认改变定位结果。
 
-- 检测：`output/optimization_20261015/rebuild_20261024/detector_v3_finetune_run01/frozen_detector.pth`，SHA256 `9e7a3a9b9cb32df87a37be71d85068f98a28d17bb61f828354534d4e95ed8b7c`。
-- 配置：`configs/inference_detector_balanced.json`，SHA256 `6164cdf41a781fa3fcc43ebc5990ad460a238b3ff4efc6bd167298fa8a2e86d0`。检测门槛.3、1024/1200、IoU=.3；原28类448物种与昆虫模型/校准不变。
-- 用户随后要求重启并做浏览器抽查，当前8000/5174已运行新默认，使用独立测试数据库；见下文。独立验证端口8016已停止。此前CUDA HTTP、历史/版本及JPEG验证通过，单图0.806秒；Docker仅同步配置，未构建/实跑。
+真实运行：8000 CUDA后端PID32036，5174前端PID36224；核验PID/命令后再操作。状态文件output/optimization_20261015/species_20261027/services.json；8016已停止，无离线GPU任务。当前DB_URL只在后台进程中指向此目录browser_rescue.db，4条测试记录。原web/backend/data.db和前轮20条browser_tests.db未覆盖。恢复用户历史时，保留所有数据库，去掉DB_URL覆盖后重启后端。
 
-完整效果及来源代价见[门槛核验](../experiments/detector_calibration_run01.md)。495开发验证的误报79→32、MAE .20745→.12766、召回87.91%→88.37%不能描述为独立测试。未知物种9/80错误确认仍未解决，部分来源检出有少量损失。
+正常启动仍在web/backend目录运行python -m uvicorn app.main:app --port 8000，前端在web/frontend运行npm run dev。独立后台应使用Start-Process -WindowStyle Hidden，并把日志/实际PID写入本轮输出，不依赖短命工具会话。模型/数据不随Git推送；他机必须取得精确SHA权重和split，不能下载同名文件替代。启动会核验主物种/原reference/昆虫/检测模型及split身份。
 
-本机原模型/数据存在时，可沿用原启动命令；不要下载或用其他同名权重代替。模型不随Git推送，他机必须取得精确权重并校验SHA。以下历史章节中的原v3路径与原配置只代表此前版本。
+验证：90项unittest、完整级联与来源回顾、24图冻结留出、CPU/CUDA真实HTTP及3个浏览器上传通过。非法上传及超20MP明确拒绝且不入库，JPEG和历史版本正常。单图CUDA1.2866秒仅为一次请求；CPU23.3933秒不是受控速度比较。Docker compose config通过，未构建或启动容器。
 
-浏览器抽查已完成10种20张，网页`http://127.0.0.1:5174/`，档案页有20条独立测试记录。后端8000 PID27396、前端5174 PID36224以Windows独立隐藏后台进程运行，实时信息在`output/optimization_20261015/rebuild_20261024/browser_species_20261026_run01/services.json`，进程号须现场核对。后端DB_URL只在该进程中指向此目录`browser_tests.db`，原数据库未操作。恢复原历史时，用没有该DB_URL覆盖的新进程正常启动后端，保留两个数据库。完整[浏览器核对记录](../experiments/browser_species_20261026.md)包含全部结果与不一致框。
-
-本地回滚（在web/backend目录，重启服务）：
+回滚到上一个balanced物种版本（在web/backend目录、重启服务；M1不变）：
 
 ```powershell
-$env:DETECTOR_PATH='../../output/det_v3/mask_rcnn_ticks_v3.pth'
-$env:INFERENCE_PROFILE_PATH='../../configs/inference_optimization.json'
+$env:SPECIES_MODEL_PATH='../../output/tick_species_clean_448/model/tick_species_best.pth'
+$env:INFERENCE_PROFILE_PATH='../../configs/inference_detector_balanced.json'
 python -m uvicorn app.main:app --port 8000
 ```
 
-恢复当前默认前，清除以上两项进程环境覆盖，再重启。Docker回滚需把Compose这两项环境变量改回`/app/models/det_v3/mask_rcnn_ticks_v3.pth`与`/app/config/inference_optimization.json`后重建容器；不要删除dbdata。`.5`候选配置`inference_detector_finetune.json`仅研究对照，不是当前默认；旧双头/逐框复核均未启用。
+回滚到原v3检测版本另加DETECTOR_PATH=../../output/det_v3/mask_rcnn_ticks_v3.pth、INFERENCE_PROFILE_PATH=../../configs/inference_optimization.json，并保持原物种模型路径。恢复当前默认时清除这些覆盖，或显式设置当前四个模型与profile。Docker同理替换SPECIES_MODEL_PATH/INFERENCE_PROFILE_PATH（回原v3还需DETECTOR_PATH），不删除dbdata卷。模型总数由3增至4，仍使用原有依赖。
+
+旧安装/容器基础说明如下，仅作为历史参考；当前模型与环境变量以上方及Compose源码为准。
 
 > 2026-09-10 · 从零讲清：装什么、写什么、怎么跑、怎么维护、怎么用
 > 本文基于本项目实际文件（`web/docker-compose.yml` 等），与代码同步维护
