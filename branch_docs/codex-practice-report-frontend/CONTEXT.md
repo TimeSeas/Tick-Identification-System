@@ -4,7 +4,7 @@
 
 ## 已完成：蜱种专项与保守补充识别
 
-计划[species_specialist_20261027](plans/species_specialist_20261027.md)，结果[species_specialist_run01](experiments/species_specialist_run01.md)。90项unittest通过，完整训练6轮，按预定val分数选第6轮。源码训练/评估提交50baa109、双专家c470cce5、最终补充路径dc0c40ad均已推送；默认配置切换及最终记录见git log/VERSIONS。
+计划[species_specialist_20261027](plans/species_specialist_20261027.md)，结果[species_specialist_run01](experiments/species_specialist_run01.md)。90项unittest通过，完整训练6轮，按预定val分数选第6轮。源码训练/评估提交50baa109、双专家c470cce5、最终补充路径dc0c40ad均已推送；最终代码/默认配置检查点a3cad33c79d27abf2efc2edd024048414a9641c2，最终记录见git log/VERSIONS。
 
 当前默认configs/inference_species_rescue.json，SHA b19a43ab4a7712b575a46bd9aad1f7fbdf600c7105d9a204b1c338204b955231。单框新ROI模型+原整图概率各.5；多框新ROI模型。原分类器同一ROI/整图预测作为reference：**原已确认结论保留，原待确认结果才允许补充确认**。补充门槛81.60640001296997%，仅calibration原待确认提案选择，新增经验precision100%、新增未知确认0；不代表未来保证。M1强支持只读原reference的确认/概率，不能由新确认复活框。
 
@@ -32,7 +32,7 @@
 
 根output/optimization_20261015/species_20261027/（Git忽略）：data/manifest.json SHA8325bd47910d03cef5381b0c89b4a09ae788d326579ca502841f3fd15f791a21；5459/918/935已知视图，145/53/26/24未知图、31/10/10/10未知种，tick_label=1。167旧错误只复核，不入训练。训练checkpoint SHA94e6c6ac6fe22c9ad6763531cf9634753b8085e715dec1b768d3b7522054be50。未知数据含标本瓶/标签，不能把全图降置信度当真实区域拒识已成功。
 
-rescue_calibration/冻结配置与policy；rescue_val/、rescue_detector_val/、rescue_binary/、rescue_old_unknown80/、rescue_holdout/均完整结束；frozen_rescue_checks.json逐条契约通过。cpu_rescue_smoke/、gpu_rescue_smoke/、browser_report.json、browser_cases.json、browser_confirmed_verified.png和rescue_visual_comparison.jpg保留真实证据。release_manifest.json最终绑定源码/权重/数据/报告/部署配置。
+rescue_calibration/冻结配置与policy；rescue_val/、rescue_detector_val/、rescue_binary/、rescue_old_unknown80/、rescue_holdout/均完整结束；frozen_rescue_checks.json逐条契约通过。cpu_rescue_smoke/、gpu_rescue_smoke/、browser_report.json、browser_cases.json、browser_confirmed_verified.png和rescue_visual_comparison.jpg保留真实证据。release_manifest.json（SHA 4e14467225084ee30b39a75cefb1d0c59f8a1706c2bd485fedc4a1077febe87a）绑定源码/权重/数据/报告/部署配置。configs/inference_species_rescue.json通过.gitattributes -text按字节保存，Git blob/工作区/冻结profile SHA一致，勿格式化换行后继续沿用原身份。
 
 直接全替换、双专家global、双专家classwise已否决（后者val正确确认334→327、错误1→4）；全部原始产物保留，不得当已通过方案。旧recognition_run01双头/VerifiedDetector也未启用，历史见各实验。过程上下文快照在history/2026-10-27/。
 

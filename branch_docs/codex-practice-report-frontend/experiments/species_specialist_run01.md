@@ -67,3 +67,5 @@ cpu_rescue_smoke/与gpu_rescue_smoke/均在新空测试库通过健康、非法M
 ## 审查与后续
 
 重要问题均先复现再修复：图片原地变更、旧checkpoint覆盖未来、known漏检分母、numpy契约、冻结模型/阈值/split、重复提案收益。没有未处理P1/P2。未知自然图/teacher框需人工复核并补同域区域标注；将标本瓶/标签单列。下一轮未知评估必须换新冻结来源，不针对旧80或本轮24选参。超20MP自动缩小属于后续可用性工作。
+
+最终代码/默认配置检查点 `a3cad33c79d27abf2efc2edd024048414a9641c2`，release_manifest.json SHA `4e14467225084ee30b39a75cefb1d0c59f8a1706c2bd485fedc4a1077febe87a`。配置字节经Git索引重新入库后与冻结文件和工作区全部一致；.gitattributes以-text避免换行自动转换。首次普通git add复用旧索引未更新内容，重新add --renormalize后已做原始字节SHA断言通过，不把属性修改本身当保存成功。所有昆虫兜底路由也逐条新旧一致。

@@ -104,7 +104,7 @@
     "tests": 90,
     "selected_epoch": 6,
     "weights_sha256": "d6605ee6e97f7f13e08bc44e036f2841b2bf3b9be3724efe75e2a8347b1c9f00",
-    "code_checkpoint": "dc0c40ad",
+    "code_checkpoint": "a3cad33c79d27abf2efc2edd024048414a9641c2",
     "unknown_rejection_status": "not_solved_reference_false_confirmations_remain",
     "default_profile": "configs/inference_species_rescue.json",
     "default_profile_sha256": "b19a43ab4a7712b575a46bd9aad1f7fbdf600c7105d9a204b1c338204b955231",
@@ -119,6 +119,8 @@
       "wrong_confirmed_new": 4,
       "status": "viewed_after_freezing_regression_only_in_future"
     },
-    "remote_push": "dc0c40ad confirmed; final default/records pending"
+    "release_manifest_sha256": "4e14467225084ee30b39a75cefb1d0c59f8a1706c2bd485fedc4a1077febe87a",
+    "source_check_status": "complete_original_confirmations_boxes_and_insect_routing_preserved",
+    "browser_report_sha256": "6efe348647d80d7eb999cf64905d699e82809af2937238bc9104db8a7c868a76"
   }
 }
