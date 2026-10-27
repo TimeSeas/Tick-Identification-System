@@ -1,6 +1,12 @@
 # 当前分支上下文
 
-更新2026-10-26。当前为codex/practice-report-frontend；主分支保持2029625d3752c14cdd6f268431eb0323e88c2bb7，不修改、不合并。不使用Claude Code。分支开发、训练和维护文档已获用户授权，无需重复询问。用户要求整体改善检测、数量、位置、蜱种及昆虫识别，仅用项目已有数据；本轮独立于实践报告。
+更新2026-10-27。当前为codex/practice-report-frontend；主分支保持2029625d3752c14cdd6f268431eb0323e88c2bb7，不修改、不合并。不使用Claude Code。分支开发、训练和维护文档已获用户授权，无需重复询问。用户已明确“开始优化吧”，执行蜱种专项训练与未知蜱种拒识；本轮独立于实践报告。
+
+## 正在执行：2026-10-27蜱种专项
+
+当前计划plans/species_specialist_20261027.md，实验experiments/species_specialist_run01.md。新产物根output/optimization_20261015/species_20261027/。冻结manifest SHA8325bd47910d03cef5381b0c89b4a09ae788d326579ca502841f3fd15f791a21，已知视图5459/918/935；未知图片145/53/26/24，物种31/10/10/10，旧80物种排除。167旧错误仅复核，不转训练。190历史引用缺失，独立性局限保留。
+
+新单头ResNet50从原蜱种权重小学习率微调，加已知蒸馏和未知均匀化；现役检测器及线上物种默认保留。69项CPU回归通过；训练前只读审查发现并修复图片SHA与回退恢复覆盖两项P2。pilot已完整结束（4步、partial，不部署），正式run01正在训练，最多6轮/patience3；日志output/optimization_20261015/species_20261027/run01.log，exec会话98081。第1轮known top1=.883442（原=.863834），macroF1=.891377（原=.857807），未知53视图最大概率均值=.247461（原=.651945）；这是组件开发验证，尚无校准/级联结论。禁止并行GPU任务或修改活跃训练源码/数据。
 
 ## 当前默认与运行状态
 
@@ -8,9 +14,9 @@
 
 检测1024/1200、门槛.3、IoU=.3、全图后空检出才切块；关闭不使用的mask回贴。原28类448蜱种与昆虫模型、校准、规则不变。原v3及configs/inference_optimization.json完整保留回滚。configs/inference_detector_finetune.json（.5）仅研究对照，双头新物种头/存在性头及VerifiedDetector均不启用。
 
-目前没有离线训练或评估任务。按用户要求已重启并完成20张随机图片浏览器核对，网页当前运行新默认。后端8000 PID27396、前端5174 PID36224，使用Start-Process -WindowStyle Hidden独立后台启动；端口与PID需现场检查，旧会话内进程曾随会话结束退出。后端常驻CUDA模型，后续训练前应先处理这个已知服务的显存占用。8016旧验证服务已停止。当前DB_URL指向output/optimization_20261015/rebuild_20261024/browser_species_20261026_run01/browser_tests.db，原web/backend/data.db未操作。未构建/实测Docker。
+正式蜱种专项训练正在运行（见上）。旧20张浏览器核对已完成。为训练释放GPU，仅核验并停止本任务后端27396，再以CUDA_VISIBLE_DEVICES=-1启动CPU后端8000 PID36776；前端5174 PID36224，使用Start-Process -WindowStyle Hidden独立后台启动；端口与PID需现场检查，旧会话内进程曾随会话结束退出。后端暂用CPU，日志species_20261027/backend_cpu.stdout.log和stderr.log；训练/离线评估结束后恢复CUDA后端并更新services.json。其他项目服务不操作。8016旧验证服务已停止。当前DB_URL指向output/optimization_20261015/rebuild_20261024/browser_species_20261026_run01/browser_tests.db，原web/backend/data.db未操作。未构建/实测Docker。
 
-最新用户任务是重启后端、随机选带物种文件夹名图片做浏览器测试，已完成10种20张。至少一个匹配候选20/20；正确已确认15/20；仅待确认5/20；错误已确认0/20。共22个预测框，21个候选与图片文件夹一致，7框待确认；02号有额外小框候选全沟硬蜱，与希伯来花蜱文件夹不一致，疑似误检/局部重复，缺少逐框真值不能擅自删掉。详见experiments/browser_species_20261026.md，名单、完整页面文本、逐框JSON、20张截图及档案截图均保存在同名ignored输出目录。不能把20/20图片有正确候选说成所有框全对或独立准确率。
+上一任务是重启后端、随机选带物种文件夹名图片做浏览器测试，已完成10种20张。至少一个匹配候选20/20；正确已确认15/20；仅待确认5/20；错误已确认0/20。共22个预测框，21个候选与图片文件夹一致，7框待确认；02号有额外小框候选全沟硬蜱，与希伯来花蜱文件夹不一致，疑似误检/局部重复，缺少逐框真值不能擅自删掉。详见experiments/browser_species_20261026.md，名单、完整页面文本、逐框JSON、20张截图及档案截图均保存在同名ignored输出目录。不能把20/20图片有正确候选说成所有框全对或独立准确率。
 
 Python C:/Users/a/.conda/envs/tick_detection/python.exe，RTX4060 Laptop8GB。设置PYTHONDONTWRITEBYTECODE=1、PYTHONIOENCODING=utf-8；环境无pytest，使用python -m unittest discover -s tests -q，62项通过。同一GPU只运行一个任务，活跃任务的源文件/权重/清单不修改。
 

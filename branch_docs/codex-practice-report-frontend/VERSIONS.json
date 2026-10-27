@@ -92,5 +92,15 @@
     "report": "experiments/browser_species_20261026.md",
     "status": "completed_20_browser_uploads_development_check_with_extra_mismatched_candidate",
     "database": "isolated browser_tests.db, original data.db unchanged"
+  },
+  "species_specialist": {
+    "date": "2026-10-27",
+    "plan": "plans/species_specialist_20261027.md",
+    "experiment": "experiments/species_specialist_run01.md",
+    "manifest_sha256": "8325bd47910d03cef5381b0c89b4a09ae788d326579ca502841f3fd15f791a21",
+    "warm_start_sha256": "e5301d269a45e0925d21f4573a503b8cc112834374e077db360595163859ab56",
+    "artifact_root": "output/optimization_20261015/species_20261027",
+    "status": "training_in_progress_default_unchanged",
+    "tests": 79
   }
 }
